@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   🌓 1. TAILWIND v4 STRICT MANUALLY CLASS-BASED TOGGLE SETUP & LAYER BASE
+   ========================================================================== */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html, body, div, header, table, tr, td, th, select, input, textarea, button, h1, h2, h3, h4, p, span, aside {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+}
+
+/* ==========================================================================
+   🎨 2. PREMIUM DYNAMIC CUSTOM SCROLLBAR MATRIX
+   ========================================================================== */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(63, 65, 68, 0.4);
+  border-radius: 9999px;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(132, 130, 133, 0.3);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 71, 87, 0.6);
+}
+
+/* ==========================================================================
+   🏛️ 3. GLOBAL STARTUP PORTAL FORCE LIGHT MODE OVERRIDES
+   ========================================================================== */
+
+/* ➔ A. HTML context mapping when '.dark' class is absent */
+html:not(.dark) body,
+html:not(.dark) .bg-\[\#151617\],
+html:not(.dark) .bg-\[\#1e1f21\] {
+  background-color: #f3f4f6 !important; /* Clean Gray Workspace Canvas */
+  color: #1e293b !important;
+}
+
+/* ➔ B. Sidebar Deck and Core Floating Containers Switch */
+html:not(.dark) aside,
+html:not(.dark) .bg-\[\#252628\],
+html:not(.dark) .bg-\[\#252628\]\/60,
+html:not(.dark) .bg-white\/5 {
+  background-color: #ffffff !important; /* Crisp White Floating Blocks */
+  border-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+/* ➔ C. Dynamic Text Streams & Content Headings Matrix */
+html:not(.dark) h1, 
+html:not(.dark) h2, 
+html:not(.dark) h3, 
+html:not(.dark) h4, 
+html:not(.dark) p, 
+html:not(.dark) span:not(.bg-red-500) {
+  color: #0f172a !important; /* Dark Slate Professional Text */
+}
+
+/* ➔ D. Inside Task Sub-cards & Recent Project Navigation Slots Grid */
+html:not(.dark) div[class*="bg-[#1e1f21]"],
+html:not(.dark) .divide-\[\#333538\]\/40 > *,
+html:not(.dark) .divide-y > tr {
+  background-color: #f8fafc !important; /* Soft Premium Off-white Inner Slots */
+  border-color: #e2e8f0 !important;
+  color: #1e293b !important;
+}
+
+/* ➔ E. Live Notifications Dropdown Container Visibility */
+html:not(.dark) div[class*="bg-[#151617]"] {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #1e293b !important;
+}
+
+/* ➔ F. Task Hover Rows & Board View Columns Lane Calibration */
+html:not(.dark) .hover\:bg-\[\#333538\]\/20:hover {
+  background-color: #f1f5f9 !important;
+}
+html:not(.dark) td {
+  color: #334155 !important;
+}
