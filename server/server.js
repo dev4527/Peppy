@@ -15,8 +15,9 @@ const server = http.createServer(app);
 // 🔌 INITIALIZE WEBSOCKET PROTOCOL ENGINE WITH EXTENDED CORS RULES
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "http://localhost:3000"],
-    methods: ["GET", "POST", "PUT", "DELETE"]
+    origin: "*", // 🚀 Unlocked for Vercel production frontend
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
   }
 });
 
@@ -28,7 +29,11 @@ if (!fs.existsSync(uploadsDir)){
 }
 
 // Global Core Middlewares
-app.use(cors());
+app.use(cors({
+  origin: "*", // 🚀 Unlocked global access route for cross-origin handshakes
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true
+}));
 app.use(express.json());
 
 // ✅ EXPOSE UPLOADS AS REUSEABLE STATIC ASSET GAP
