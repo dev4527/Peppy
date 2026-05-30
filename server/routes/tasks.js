@@ -3,21 +3,9 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const nodemailer = require('nodemailer');
 const Task = require('../models/Task');
 const Notification = require('../models/Notification');
 const auth = require('../middleware/authMiddleware');
-
-// 📧 ------------------------------------------------------------------
-//🚨 NODEMAILER TRANSPORTER INITIALIZATION NODE (Use App Passwords)
-// ------------------------------------------------------------------
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER || 'your-startup-email@gmail.com', 
-    pass: process.env.EMAIL_PASS || 'your-app-password-here'
-  }
-});
 
 // 📁 ------------------------------------------------------------------
 // 🚨 MULTER DISK STORAGE CONFIGURATION ENGINE FOR FILE ATTACHMENTS
@@ -42,7 +30,6 @@ const upload = multer({ storage: storage });
 // ==========================================
 
 // @route   GET api/tasks/project/:projectId
-// @desc    Get all tasks linked to a specific project workspace board
 router.get('/project/:projectId', auth, async (req, res) => {
   try {
     const tasks = await Task.find({ project: req.params.projectId })
@@ -56,7 +43,6 @@ router.get('/project/:projectId', auth, async (req, res) => {
 });
 
 // @route   GET api/tasks/my-tasks
-// @desc    Get all active tasks assigned specifically to the logged-in user
 router.get('/my-tasks', auth, async (req, res) => {
   try {
     let userId = null;
@@ -85,7 +71,7 @@ router.get('/my-tasks', auth, async (req, res) => {
 });
 
 // @route   POST api/tasks
-// @desc    Create a new task card, trigger automated notifications, and emit websocket packets
+// @desc    Create a new task card and dynamically trigger email assignment notification
 router.post('/', auth, async (req, res) => {
   try {
     const { title, description, priority, project, dueDate, assignedTo, recurrenceType } = req.body;
@@ -105,10 +91,6 @@ router.post('/', auth, async (req, res) => {
       }
     }
 
-    if (!creatorId) {
-      return res.status(401).json({ message: 'Creator authentication context lost.' });
-    }
-
     const newTask = new Task({
       title: title.trim(),
       description: description ? description.trim() : '',
@@ -123,7 +105,13 @@ router.post('/', auth, async (req, res) => {
     await newTask.save();
     console.log(`🎯 New task successfully deployed: [${title}]`);
 
-    if (assignedTo) {
+    // Fetch details of task with user object populated to extract email securely
+    const populatedTask = await Task.findById(newTask._id).populate('assignedTo', 'name email');
+
+    if (populatedTask && populatedTask.assignedTo && populatedTask.assignedTo.email) {
+      const targetEmail = populatedTask.assignedTo.email;
+
+      // 1. In-app Live Notification Database entry
       const taskAlert = new Notification({
         recipient: assignedTo,
         sender: creatorId,
@@ -131,11 +119,39 @@ router.post('/', auth, async (req, res) => {
         message: `You have been assigned a new task: "${title.trim()}" in your project roadmap deck.`,
         type: 'task_assigned'
       });
-
       await taskAlert.save();
 
       if (req.io) {
         req.io.to(assignedTo).emit('new_notification', taskAlert);
+      }
+
+      // 2. Production Mail Trigger using centralized req.transporter pipeline
+      if (req.transporter) {
+        const mailOptions = {
+          from: `"Peppy Tracker Hub" <${process.env.EMAIL_USER}>`,
+          to: targetEmail,
+          subject: `📋 New Task Assigned: "${title.trim()}"`,
+          html: `
+            <div style="font-family: sans-serif; padding: 25px; background: #151617; color: white; border-radius: 16px; border: 1px solid #2d2e30;">
+              <h2 style="color: #4cd137; margin: 0 0 5px 0; font-size: 20px; font-weight: 900;">New Assignment Update</h2>
+              <hr style="border: 0; border-top: 1px solid #2d2e30; margin: 15px 0;" />
+              <p style="font-size: 14px; color: #cbd5e1;">Bhai, aapko ek naya task assign kiya gaya hai workspace par:</p>
+              <div style="background: #1e1f21; padding: 15px; border-left: 4px solid #4cd137; border-radius: 8px; color: white; margin: 15px 0;">
+                <strong>Title:</strong> ${title.trim()}<br/>
+                <strong>Priority:</strong> ${priority || 'Medium'}<br/>
+                <strong>Due Date:</strong> ${dueDate ? new Date(dueDate).toLocaleDateString() : 'No Deadline'}
+              </div>
+              <p style="font-size: 12px; color: #848285;">Please check your master dashboard timeline stream layout instantly.</p>
+            </div>
+          `
+        };
+
+        try {
+          await req.transporter.sendMail(mailOptions);
+          console.log(`🚀 Assignment mail successfully dispatched to user: ${targetEmail}`);
+        } catch (mailError) {
+          console.error(`❌ Mail delivery chain broken for assignment to ${targetEmail}:`, mailError.message);
+        }
       }
     }
 
@@ -147,7 +163,6 @@ router.post('/', auth, async (req, res) => {
 });
 
 // @route   PUT api/tasks/:id
-// @desc    Update an existing task configuration or advance its status lane process
 router.put('/:id', auth, async (req, res) => {
   try {
     const { title, description, priority, status, dueDate, assignedTo, recurrenceType } = req.body;
@@ -178,16 +193,16 @@ router.put('/:id', auth, async (req, res) => {
 
 
 // ==========================================
-// 🚀 NEW UPGRADED DYNAMIC FUNCTIONAL endpoints
+// 🚀 UPGRADED REAL-TIME COMMENT ENGINE
 // ==========================================
 
 // @route   POST api/tasks/:id/comments
-// @desc    Add collaborative activity note and trigger automatic @email help alerts
 router.post('/:id/comments', auth, async (req, res) => {
   try {
     const { text, userName } = req.body;
-    const task = await Task.findById(req.params.id);
     
+    // Populate assignedTo fields to track who needs to receive the comment mail
+    const task = await Task.findById(req.params.id).populate('assignedTo', 'name email');
     if (!task) {
       return res.status(404).json({ message: 'Task configuration record missing.' });
     }
@@ -198,50 +213,53 @@ router.post('/:id/comments', auth, async (req, res) => {
       timestamp: new Date()
     };
 
-    // Push new comment chunk into schema array parameters
     task.comments = task.comments || [];
     task.comments.push(newComment);
     await task.save();
 
-    // 🔍 AUTOMATED REGEX EXTRACTION OF @EMAILS FROM INPUT LOGS
-    const emailRegex = /@([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})/g;
-    const detectedEmails = text.match(emailRegex);
+    // 📬 1. TRIGGER BROADCAST MAIL ON EVERY COMMENT IF TRANSPORTER IS PRESENT
+    if (req.transporter) {
+      let targetList = [];
+      
+      // Extract specific @tagged email address through existing system structure
+      const emailRegex = /@([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})/g;
+      const detectedEmails = text.match(emailRegex);
 
-    if (detectedEmails && detectedEmails.length > 0) {
-      // Strips leading '@' character to isolate pure email targets
-      const isolatedEmails = detectedEmails.map(m => m.substring(1));
+      if (detectedEmails && detectedEmails.length > 0) {
+        targetList = detectedEmails.map(m => m.substring(1));
+      } else if (task.assignedTo && task.assignedTo.email) {
+        // Fallback: Agar kisi ko mention nahi kiya toh direct assigned user ko mail bhej do
+        targetList.push(task.assignedTo.email);
+      }
 
-      isolatedEmails.forEach(async (email) => {
+      // Sweep through clean list map streams to send notifications seamlessly
+      targetList.forEach(async (email) => {
         const mailOptions = {
-          from: '"Peppy Tracker Helpdesk" <your-startup-email@gmail.com>',
+          from: `"Peppy Activity Stream" <${process.env.EMAIL_USER}>`,
           to: email,
-          subject: `🚨 Urgent Help Requested: "${task.title}"`,
+          subject: `💬 New Comment Logged: "${task.title}"`,
           html: `
             <div style="font-family: sans-serif; padding: 25px; background: #151617; color: white; border-radius: 16px; border: 1px solid #2d2e30;">
-              <h2 style="color: #ff4757; margin: 0 0 5px 0; font-size: 20px; font-weight: 900; letter-spacing: -0.5px;">Peppy Tracker Automated Alert</h2>
-              <p style="font-size: 10px; color: #848285; text-transform: uppercase; margin: 0; font-weight: bold; letter-spacing: 1px;">Live Operational Hub Broadcast</p>
+              <h2 style="color: #ff4757; margin: 0 0 5px 0; font-size: 20px; font-weight: 900;">Peppy Action Activity Update</h2>
               <hr style="border: 0; border-top: 1px solid #2d2e30; margin: 15px 0;" />
-              <p style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">Bhai, <strong>${userName || 'Team Operator'}</strong> ne task stream activity panel me help maangi hai aur aapko tag kiya hai:</p>
+              <p style="font-size: 13px; color: #cbd5e1; line-height: 1.6;">Bhai, <strong>${userName || 'Team Operator'}</strong> ne stream discussion block me update dala hai:</p>
               <div style="background: #1e1f21; padding: 15px; border-left: 4px solid #ff4757; border-radius: 8px; color: white; font-style: italic; font-size: 13px; margin: 15px 0;">
                 "${text}"
               </div>
-              <p style="font-size: 12px; color: #cbd5e1; margin-top: 15px;"><strong>Target Active Task:</strong> ${task.title}</p>
-              <hr style="border: 0; border-top: 1px solid #2d2e30; margin: 15px 0;" />
-              <p style="font-size: 10px; color: #ff4757; font-weight: bold; margin: 0;">⚠️ Please jump on the production sprint board workspace immediately.</p>
+              <p style="font-size: 12px; color: #cbd5e1; margin-top: 15px;"><strong>Target Task Block:</strong> ${task.title}</p>
             </div>
           `
         };
 
         try {
-          await transporter.sendMail(mailOptions);
-          console.log(`🚀 Automated Help mail dispatched smoothly to: ${email}`);
+          await req.transporter.sendMail(mailOptions);
+          console.log(`🚀 Discussion logs mail delivered smoothly to: ${email}`);
         } catch (mailError) {
-          console.error(`❌ Mail distribution chain exception for ${email}:`, mailError);
+          console.error(`❌ Thread update failure tracking code loop for ${email}:`, mailError.message);
         }
       });
     }
 
-    // Trigger instant global workspace re-fetch broadcast sync packets
     if (req.io) {
       req.io.to(task.project.toString()).emit('task_changed', { taskId: task._id });
     }
@@ -254,7 +272,6 @@ router.post('/:id/comments', auth, async (req, res) => {
 });
 
 // @route   POST api/tasks/:id/subtasks
-// @desc    Inject a nested actionable checkpoint item into a target task document boundary
 router.post('/:id/subtasks', auth, async (req, res) => {
   try {
     const { title } = req.body;
@@ -279,7 +296,6 @@ router.post('/:id/subtasks', auth, async (req, res) => {
 });
 
 // @route   PUT api/tasks/:id/subtasks/:subId
-// @desc    Toggle check/uncheck status condition matrix of a nested item lifecycle lane
 router.put('/:id/subtasks/:subId', auth, async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
@@ -288,7 +304,6 @@ router.put('/:id/subtasks/:subId', auth, async (req, res) => {
     const subtask = task.subtasks.id(req.params.subId);
     if (!subtask) return res.status(404).json({ message: 'Target subtask checkpoint block not found.' });
 
-    // Inverse current state boolean values smoothly
     subtask.isCompleted = !subtask.isCompleted;
     await task.save();
 
@@ -304,7 +319,6 @@ router.put('/:id/subtasks/:subId', auth, async (req, res) => {
 });
 
 // @route   POST api/tasks/:id/upload
-// @desc    Handle form binary uploads streams via multer layers and update document file arrays
 router.post('/:id/upload', auth, upload.single('attachment'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Binary asset document stream layer empty.' });
@@ -314,7 +328,7 @@ router.post('/:id/upload', auth, upload.single('attachment'), async (req, res) =
 
     const filePayload = {
       fileName: req.file.originalname,
-      filePath: `/uploads/${req.file.filename}` // Relative serving directory mapping parameter link
+      filePath: `/uploads/${req.file.filename}`
     };
 
     task.attachments = task.attachments || [];
