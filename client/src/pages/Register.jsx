@@ -15,7 +15,7 @@ function Register() {
     e.preventDefault();
     setError('');
     try {
-      await axios.post('http://localhost:5000/api/auth/register', { name, email, password, role });
+      await axios.post('https://peppy-we0g.onrender.com/api/auth/register', { name, email, password, role });
       setSuccess(true);
       setTimeout(() => {
         navigate('/login'); // Sends them to sign in after successful onboarding

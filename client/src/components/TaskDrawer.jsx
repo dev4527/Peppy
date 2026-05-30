@@ -46,7 +46,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
 
     try {
       const token = localStorage.getItem('peppy_token');
-      const res = await axios.post(`http://localhost:5000/api/tasks/${task._id}/comments`, 
+      const res = await axios.post(`https://peppy-we0g.onrender.com/api/tasks/${task._id}/comments`, 
         { text: textToPost, userName: currentUserName },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -82,7 +82,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
       
       console.log(`Streaming binary tracking blocks to server: /api/tasks/${task._id}/upload`);
       
-      const res = await axios.post(`http://localhost:5000/api/tasks/${task._id}/upload`, formData, {
+      const res = await axios.post(`https://peppy-we0g.onrender.com/api/tasks/${task._id}/upload`, formData, {
         headers: { 
           Authorization: `Bearer ${token}`,
           'Content-Type': 'multipart/form-data' // Informs server engine to expect raw files binary stream
@@ -122,7 +122,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
 
     try {
       const token = localStorage.getItem('peppy_token');
-      const res = await axios.post(`http://localhost:5000/api/tasks/${task._id}/subtasks`, 
+      const res = await axios.post(`https://peppy-we0g.onrender.com/api/tasks/${task._id}/subtasks`, 
         { title: subTitleText },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -139,7 +139,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
     try {
       setLocalSubtasks(prev => prev.map(st => st._id === subId ? { ...st, isCompleted: !st.isCompleted } : st));
       const token = localStorage.getItem('peppy_token');
-      const res = await axios.put(`http://localhost:5000/api/tasks/${task._id}/subtasks/${subId}`, {}, {
+      const res = await axios.put(`https://peppy-we0g.onrender.com/api/tasks/${task._id}/subtasks/${subId}`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data && res.data.subtasks) {
@@ -207,7 +207,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
               <div key={file._id || idx} className="flex justify-between items-center bg-[#252628] border border-[#333538] p-2.5 rounded-xl">
                 <span className="text-slate-300 font-medium truncate max-w-[180px]">📎 {file.fileName}</span>
                 <a 
-                  href={`http://localhost:5000${file.filePath}`} 
+                  href={`https://peppy-we0g.onrender.com${file.filePath}`} 
                   target="_blank" 
                   rel="noreferrer"
                   className="text-red-400 hover:text-red-300 font-bold text-[10px] uppercase border border-red-500/20 px-2 py-0.5 rounded-lg bg-red-500/5 transition"

@@ -11,7 +11,7 @@ import ProfileView from '../components/ProfileView';
 import FloatingAI from '../components/FloatingAI'; 
 import ChatView from '../components/ChatView'; 
 
-const socket = io('http://localhost:5000');
+const socket = io('https://peppy-we0g.onrender.com');
 
 function Dashboard() {
   const { user, logout } = useContext(AuthContext);
@@ -65,7 +65,7 @@ function Dashboard() {
   const fetchMyAlerts = async () => {
     try {
       const token = localStorage.getItem('peppy_token');
-      const res = await axios.get('http://localhost:5000/api/notifications', {
+      const res = await axios.get('https://peppy-we0g.onrender.com/api/notifications', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(res.data);
@@ -80,14 +80,14 @@ function Dashboard() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
       
-      let membersUrl = 'http://localhost:5000/api/auth/users';
+      let membersUrl = 'https://peppy-we0g.onrender.com/api/auth/users';
       if (currentProject?.teamCategory) {
-        membersUrl = `http://localhost:5000/api/auth/users/team/${encodeURIComponent(currentProject.teamCategory)}`;
+        membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(currentProject.teamCategory)}`;
       }
 
       const [membersRes, projectsRes] = await Promise.all([
         axios.get(membersUrl, { headers }),
-        axios.get('http://localhost:5000/api/projects', { headers })
+        axios.get('https://peppy-we0g.onrender.com/api/projects', { headers })
       ]);
       
       setTeamMembers(membersRes.data);
@@ -103,13 +103,13 @@ function Dashboard() {
     try {
       let freshDataDeck = [];
       if (showMyTasks) {
-        const res = await axios.get('http://localhost:5000/api/tasks/my-tasks', { headers: { Authorization: `Bearer ${token}` } });
+        const res = await axios.get('https://peppy-we0g.onrender.com/api/tasks/my-tasks', { headers: { Authorization: `Bearer ${token}` } });
         freshDataDeck = res.data;
       } else if (currentProject?._id) {
-        const res = await axios.get(`http://localhost:5000/api/tasks/project/${currentProject._id}`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await axios.get(`https://peppy-we0g.onrender.com/api/tasks/project/${currentProject._id}`, { headers: { Authorization: `Bearer ${token}` } });
         freshDataDeck = res.data;
       } else {
-        const res = await axios.get('http://localhost:5000/api/tasks/my-tasks', { headers: { Authorization: `Bearer ${token}` } });
+        const res = await axios.get('https://peppy-we0g.onrender.com/api/tasks/my-tasks', { headers: { Authorization: `Bearer ${token}` } });
         freshDataDeck = res.data;
       }
       
@@ -122,7 +122,7 @@ function Dashboard() {
           setSelectedTask(currentlyInspectedTask);
         } else {
           // Deep tracking query fallback
-          const singleTaskRes = await axios.get(`http://localhost:5000/api/tasks/${selectedTask._id}`, {
+          const singleTaskRes = await axios.get(`https://peppy-we0g.onrender.com/api/tasks/${selectedTask._id}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
           if (singleTaskRes.data) {
@@ -152,7 +152,7 @@ function Dashboard() {
   const handleMarkRead = async (id) => {
     try {
       const token = localStorage.getItem('peppy_token');
-      await axios.put(`http://localhost:5000/api/notifications/${id}/read`, {}, {
+      await axios.put(`https://peppy-we0g.onrender.com/api/notifications/${id}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
@@ -196,7 +196,7 @@ function Dashboard() {
     setLoading(true);
     try {
       const token = localStorage.getItem('peppy_token');
-      await axios.post('http://localhost:5000/api/tasks', 
+      await axios.post('https://peppy-we0g.onrender.com/api/tasks', 
         { title, description, priority, project: finalProjectID, dueDate, assignedTo: assignedTo || null, recurrenceType },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -219,7 +219,7 @@ function Dashboard() {
     setTasks(prevTasks => prevTasks.map(t => t._id === taskId ? { ...t, status: nextStatus } : t));
     try {
       const token = localStorage.getItem('peppy_token');
-      await axios.put(`http://localhost:5000/api/tasks/${taskId}`, { status: nextStatus }, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.put(`https://peppy-we0g.onrender.com/api/tasks/${taskId}`, { status: nextStatus }, { headers: { Authorization: `Bearer ${token}` } });
       fetchDashboardTasks();
     } catch (err) { console.error(err); fetchDashboardTasks(); }
   };

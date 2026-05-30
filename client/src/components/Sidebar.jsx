@@ -18,8 +18,8 @@ function Sidebar({ currentProject, setCurrentProject, showMyTasks, setShowMyTask
       const headers = { Authorization: `Bearer ${token}` };
       
       const [projRes, teamRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/projects', { headers }),
-        axios.get('http://localhost:5000/api/teams', { headers })
+        axios.get('https://peppy-we0g.onrender.com/api/projects', { headers }),
+        axios.get('https://peppy-we0g.onrender.com/api/teams', { headers })
       ]);
       
       setProjects(projRes.data);
@@ -47,7 +47,7 @@ function Sidebar({ currentProject, setCurrentProject, showMyTasks, setShowMyTask
       // ✅ DOUBLE FALLBACK ENGINE: Ensure team parameter string never maps to blank data structures
       const selectedCategory = projectTeam || (teams.length > 0 ? teams[0].name : 'Website Team');
       
-      const res = await axios.post('http://localhost:5000/api/projects', 
+      const res = await axios.post('https://peppy-we0g.onrender.com/api/projects', 
         { name: projectName.trim(), teamCategory: selectedCategory },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -73,7 +73,7 @@ function Sidebar({ currentProject, setCurrentProject, showMyTasks, setShowMyTask
     setLoading(true);
     try {
       const token = localStorage.getItem('peppy_token');
-      await axios.post('http://localhost:5000/api/teams', 
+      await axios.post('https://peppy-we0g.onrender.com/api/teams', 
         { name: newTeamName.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -90,7 +90,7 @@ function Sidebar({ currentProject, setCurrentProject, showMyTasks, setShowMyTask
     if (!window.confirm('Are you sure you want to permanently eliminate this department team?')) return;
     try {
       const token = localStorage.getItem('peppy_token');
-      await axios.delete(`http://localhost:5000/api/teams/${teamId}`, {
+      await axios.delete(`https://peppy-we0g.onrender.com/api/teams/${teamId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       await fetchGlobalSidebarData();

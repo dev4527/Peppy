@@ -3,7 +3,7 @@ import axios from 'axios';
 import { io } from 'socket.io-client';
 import { AuthContext } from '../context/AuthContext';
 
-const socket = io('http://localhost:5000');
+const socket = io('https://peppy-we0g.onrender.com');
 
 function ChatView() {
   const { user } = useContext(AuthContext);
@@ -18,7 +18,7 @@ function ChatView() {
     const fetchUsersList = async () => {
       try {
         const token = localStorage.getItem('peppy_token');
-        const res = await axios.get('http://localhost:5000/api/auth/users', {
+        const res = await axios.get('https://peppy-we0g.onrender.com/api/auth/users', {
           headers: { Authorization: `Bearer ${token}` }
         });
         // Filter out logged-in user securely
@@ -43,7 +43,7 @@ function ChatView() {
       if (!activeChatUser) return;
       try {
         const token = localStorage.getItem('peppy_token');
-        const res = await axios.get(`http://localhost:5000/api/chats/history/${activeChatUser._id}`, {
+        const res = await axios.get(`https://peppy-we0g.onrender.com/api/chats/history/${activeChatUser._id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         setMessages(res.data);
@@ -85,7 +85,7 @@ function ChatView() {
       const token = localStorage.getItem('peppy_token');
       
       // 1. Post text payload block straight into backend mongo cluster storage logs
-      const res = await axios.post('http://localhost:5000/api/chats/send', 
+      const res = await axios.post('https://peppy-we0g.onrender.com/api/chats/send', 
         { receiverId: activeChatUser._id, text: typedMessage.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );

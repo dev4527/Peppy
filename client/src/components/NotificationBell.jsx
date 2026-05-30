@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:5000');
+const socket = io('https://peppy-we0g.onrender.com');
 
 function NotificationBell() {
   const [notifications, setNotifications] = useState([]);
@@ -11,7 +11,7 @@ function NotificationBell() {
   const fetchNotifications = async () => {
     try {
       const token = localStorage.getItem('peppy_token');
-      const res = await axios.get('http://localhost:5000/api/notifications', {
+      const res = await axios.get('https://peppy-we0g.onrender.com/api/notifications', {
         headers: { Authorization: `Bearer ${token}` }
       });
       setNotifications(res.data);
@@ -36,7 +36,7 @@ function NotificationBell() {
   const handleMarkAsRead = async (id) => {
     try {
       const token = localStorage.getItem('peppy_token');
-      await axios.put(`http://localhost:5000/api/notifications/${id}/read`, {}, {
+      await axios.put(`https://peppy-we0g.onrender.com/api/notifications/${id}/read`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
       fetchNotifications(); // Panel refresh
