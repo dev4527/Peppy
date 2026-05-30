@@ -39,16 +39,7 @@ app.use(express.json());
 // ✅ EXPOSE UPLOADS AS REUSEABLE STATIC ASSET GAP
 app.use('/uploads', express.static(uploadsDir));
 
-// 🚀 CONNECT TO MONGODB ATLAS & IGNITE SCHEDULER CYCLES
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('🚀 Securely connected to Cloud MongoDB Atlas');
-    // START BACKGROUND CRON SCHEDULER INSTANTLY ON BOOT SUCCESS
-    initScheduler(); 
-  })
-  .catch(err => console.error('❌ MongoDB Connection Failure Error:', err));
-
-// 📬 SETUP NODEMAILER EMAIL HANDSHAKE ENGINE
+// 📬 SETUP NODEMAILER EMAIL HANDSHAKE ENGINE (Shifted Up 🔝)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -57,7 +48,7 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// Verify email setup on initial boot
+// Verify email setup immediately on initial boot
 transporter.verify((error, success) => {
   if (error) {
     console.error('⚠️ Nodemailer validation notice:', error.message);
@@ -65,6 +56,15 @@ transporter.verify((error, success) => {
     console.log('📬 Corporate notification email gateway ready.');
   }
 });
+
+// 🚀 CONNECT TO MONGODB ATLAS & IGNITE SCHEDULER CYCLES
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log('🚀 Securely connected to Cloud MongoDB Atlas');
+    // START BACKGROUND CRON SCHEDULER INSTANTLY ON BOOT SUCCESS
+    initScheduler(); 
+  })
+  .catch(err => console.error('❌ MongoDB Connection Failure Error:', err));
 
 // 🛡️ INJECT SOCKET & EMAIL OBJECTS INTO REQ STREAM PIPELINE
 app.use((req, res, next) => {
