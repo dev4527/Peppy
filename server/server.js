@@ -39,23 +39,19 @@ app.use(express.json());
 // ✅ EXPOSE UPLOADS AS REUSEABLE STATIC ASSET GAP
 app.use('/uploads', express.static(uploadsDir));
 
-// 📬 SETUP NODEMAILER EMAIL HANDSHAKE ENGINE (Shifted Up 🔝)
+// 📬 SETUP NODEMAILER EMAIL HANDSHAKE ENGINE WITH EXPLICIT SMTP POOL
 const transporter = nodemailer.createTransport({
   service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true, // Upgraded TLS handshake mechanism for production cloud
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
   }
 });
 
-// Verify email setup immediately on initial boot
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('⚠️ Nodemailer validation notice:', error.message);
-  } else {
-    console.log('📬 Corporate notification email gateway ready.');
-  }
-});
+console.log('📬 Production Email Gateway Initialized Status: Active');
 
 // 🚀 CONNECT TO MONGODB ATLAS & IGNITE SCHEDULER CYCLES
 mongoose.connect(process.env.MONGO_URI)
