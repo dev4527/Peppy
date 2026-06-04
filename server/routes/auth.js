@@ -16,9 +16,10 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'User identity profile already exists.' });
     }
 
+    // Force strict structure defaults alignment
     user = new User({
-      name,
-      email,
+      name: name.trim(),
+      email: email.trim(),
       password,
       role: role || 'Team Member',
       team: team || 'Website Team' // Default fallback structural tracking segment
@@ -91,10 +92,27 @@ router.get('/user', auth, async (req, res) => {
 });
 
 // @route   GET api/auth/users
-// @desc    Fetch all corporate workforce records globally inside database registers
+// @desc    Fetch workforce records dynamically based on roles (Admin vs Manager hierarchy 👑)
 router.get('/users', auth, async (req, res) => {
   try {
-    const users = await User.find().select('-password').sort({ createdAt: 1 });
+    // 1. First fetch the currentUser to audit their execution clearance level
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) return res.status(404).json({ message: 'Session metadata mismatch.' });
+
+    let users;
+    // 👑 ADMIN / CEO ACCESS: Gets everyone globally across all workspaces
+    if (currentUser.role === 'Admin') {
+      users = await User.find().select('-password').sort({ createdAt: 1 });
+    } 
+    // 🏢 MANAGER ACCESS: Filter data bounds to only expose their specific team cluster
+    else if (currentUser.role === 'Manager') {
+      users = await User.find({ team: currentUser.team }).select('-password').sort({ createdAt: 1 });
+    } 
+    // 👤 EMPLOYEE ACCESS: Hardlocked block. Members cannot list global employee records.
+    else {
+      return res.status(403).json({ message: 'Access denied. Workspace controls restricted.' });
+    }
+
     res.json(users);
   } catch (error) {
     console.error('❌ General user listing drop:', error);
@@ -102,12 +120,18 @@ router.get('/users', auth, async (req, res) => {
   }
 });
 
-// ✅ ADDED: DYNAMIC SEPARATOR ROUTE CHANNEL LOOP
+// ✅ ASANA SEPARATOR ROUTE CHANNEL LOOP
 // @route   GET api/auth/users/team/:teamName
 // @desc    Get all corporate employees belonging to a single isolated department team folder
 router.get('/users/team/:teamName', auth, async (req, res) => {
   try {
     const teamName = req.params.teamName;
+    const currentUser = await User.findById(req.user.id);
+
+    // Strict Guard: Manager rules check (Managers can't snoop into other teams)
+    if (currentUser.role === 'Manager' && currentUser.team !== teamName) {
+      return res.status(403).json({ message: 'Cross-department data scoping is restricted.' });
+    }
     
     // Find all database profiles whose assigned team matches the active browsing matrix lane context
     const teamEmployees = await User.find({ team: teamName }).select('name email role team');
