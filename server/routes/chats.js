@@ -1,17 +1,22 @@
 const express = require('express');
 const router = express.Router();
 const Message = require('../models/Message');
+const ChatGroup = require('../models/ChatGroup');
+const User = require('../models/User');
 const auth = require('../middleware/authMiddleware');
+
+// ==========================================
+// 👤 EXISTING 1-ON-1 PRIVATE CHATS SECTION
+// ==========================================
 
 // @route   GET api/chats/history/:userId
 // @desc    Get chat history between logged-in user and target user
 router.get('/history/:userId', auth, async (req, res) => {
   try {
-    // 🎯 RE-MAPPED TO TARGET EXACT PAYLOAD PATHWAY
     let currentUserId = null;
     if (req.user) {
       if (req.user.user && req.user.user.id) {
-        currentUserId = req.user.user.id; // ✅ Target path fixed
+        currentUserId = req.user.user.id;
       } else if (typeof req.user === 'object') {
         currentUserId = req.user.id || req.user._id;
       } else {
@@ -41,7 +46,7 @@ router.get('/history/:userId', auth, async (req, res) => {
 });
 
 // @route   POST api/chats/send
-// @desc    Save a message to the database
+// @desc    Save a private 1-on-1 message to the database
 router.post('/send', auth, async (req, res) => {
   try {
     const { receiverId, text } = req.body;
@@ -50,11 +55,10 @@ router.post('/send', auth, async (req, res) => {
       return res.status(400).json({ message: 'Cannot send empty string.' });
     }
 
-    // 🎯 RE-MAPPED TO TARGET EXACT PAYLOAD PATHWAY
     let senderId = null;
     if (req.user) {
       if (req.user.user && req.user.user.id) {
-        senderId = req.user.user.id; // ✅ Target path fixed
+        senderId = req.user.user.id;
       } else if (typeof req.user === 'object') {
         senderId = req.user.id || req.user._id;
       } else {
@@ -62,7 +66,6 @@ router.post('/send', auth, async (req, res) => {
       }
     }
 
-    // Critical failure guard bypass layer
     if (!senderId) {
       return res.status(401).json({ message: 'Sender authentication context lost inside database pipeline wrapper.' });
     }
@@ -78,6 +81,146 @@ router.post('/send', auth, async (req, res) => {
   } catch (error) {
     console.error('❌ Message tracking write failure:', error);
     return res.status(500).json({ message: 'Internal engine chat log capture drop: ' + error.message });
+  }
+});
+
+
+// ==========================================
+// 👥 NEW WHATSAPP-STYLE GROUP CHATS SECTION
+// ==========================================
+
+// ➕ @route   POST api/chats/groups
+// @desc    Create a new mini-WhatsApp corporate chat group channel
+router.post('/groups', auth, async (req, res) => {
+  const { name, description, teamScope, members } = req.body;
+
+  try {
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Group Name parameter is missing.' });
+    }
+
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) return res.status(404).json({ message: 'User reference missing.' });
+
+    // Hierarchy Safeguard: Admin specifies team Scope, Manager/Employee automatically locks to their team folder
+    const groupTeamScope = currentUser.role === 'Admin' ? (teamScope || 'Global') : currentUser.team;
+
+    // Build unique members array list seamlessly
+    let finalMembersList = members || [];
+    if (!finalMembersList.includes(req.user.id)) {
+      finalMembersList.push(req.user.id);
+    }
+
+    const newGroup = new ChatGroup({
+      name: name.trim(),
+      description: description ? description.trim() : '',
+      teamScope: groupTeamScope,
+      members: finalMembersList,
+      createdBy: req.user.id
+    });
+
+    await newGroup.save();
+    console.log(`💬 New corporate WhatsApp-Group generated: [${name.trim()}]`);
+
+    return res.status(201).json(newGroup);
+  } catch (error) {
+    console.error('❌ Group generation transaction loop drop:', error);
+    return res.status(500).json({ message: 'Server crash during team group creation.' });
+  }
+});
+
+// 🧭 @route   GET api/chats/groups
+// @desc    Fetch groups dynamically based on role visibility criteria 📱
+router.get('/groups', auth, async (req, res) => {
+  try {
+    const currentUser = await User.findById(req.user.id);
+    if (!currentUser) return res.status(404).json({ message: 'Authentication mismatch.' });
+
+    let visibleGroups;
+
+    // 👑 ADMIN / CEO LOOKUP: Gets absolutely every chat group inside the entire company
+    if (currentUser.role === 'Admin') {
+      visibleGroups = await ChatGroup.find().populate('members', 'name email role team').sort({ updatedAt: -1 });
+    } 
+    // 🏢 MANAGER & EMPLOYEE ACCESS: Can only see groups matching their team scope OR where they are manually added
+    else {
+      visibleGroups = await ChatGroup.find({
+        $or: [
+          { teamScope: currentUser.team },
+          { members: req.user.id }
+        ]
+      }).populate('members', 'name email role team').sort({ updatedAt: -1 });
+    }
+
+    return res.json(visibleGroups);
+  } catch (error) {
+    console.error('❌ Visible chat group collection drop:', error);
+    return res.status(500).json({ message: 'Server error processing group queries.' });
+  }
+});
+
+// ⏳ @route   GET api/chats/group/history/:groupId
+// @desc    Fetch message stream for a specific chat group channel
+router.get('/group/history/:groupId', auth, async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    // Verify if user is part of the requested group bounds
+    const currentUser = await User.findById(req.user.id);
+    const group = await ChatGroup.findById(groupId);
+
+    if (!group) return res.status(404).json({ message: 'Group chat channel target not found.' });
+
+    if (currentUser.role !== 'Admin' && group.teamScope !== currentUser.team && !group.members.includes(req.user.id)) {
+      return res.status(403).json({ message: 'Access denied. You do not belong to this group cluster.' });
+    }
+
+    // Capture group history timeline sequence using groupId tracking parameters inside message documents
+    const groupHistory = await Message.find({ group: groupId })
+      .populate('sender', 'name email role team')
+      .sort({ createdAt: 1 });
+
+    return res.json(groupHistory);
+  } catch (error) {
+    console.error('❌ Group history stream retrieval failed:', error);
+    return res.status(500).json({ message: 'Server exception mapping group conversations.' });
+  }
+});
+
+// 🚀 @route   POST api/chats/group/send
+// @desc    Save a group chat message to the database instance
+router.post('/group/send', auth, async (req, res) => {
+  try {
+    const { groupId, text } = req.body;
+
+    if (!text || !text.trim()) return res.status(400).json({ message: 'Cannot drop empty messages inside streams.' });
+
+    let senderId = null;
+    if (req.user) {
+      if (req.user.user && req.user.user.id) {
+        senderId = req.user.user.id;
+      } else if (typeof req.user === 'object') {
+        senderId = req.user.id || req.user._id;
+      } else {
+        senderId = req.user;
+      }
+    }
+
+    const newMessage = new Message({
+      sender: senderId,
+      group: groupId, // Mapped parameter to isolate group streams
+      text: text.trim()
+    });
+
+    await newMessage.save();
+    
+    // Populate sender details for immediate frontend append UI structures
+    const populatedMessage = await Message.findById(newMessage._id).populate('sender', 'name email role team');
+
+    return res.json(populatedMessage);
+  } catch (error) {
+    console.error('❌ Group packet logging error:', error);
+    return res.status(500).json({ message: 'Failed to write group message data frame.' });
   }
 });
 

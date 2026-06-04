@@ -8,7 +8,7 @@ const Notification = require('../models/Notification');
 const auth = require('../middleware/authMiddleware');
 
 // 📁 ------------------------------------------------------------------
-// 🚨 MULTER DISK STORAGE CONFIGURATION ENGINE FOR FILE ATTACHMENTS
+// 🚨 MULTER DISK STORAGE CONFIGURATION ENGINE FOR UNIVERSAL ATTACHMENTS
 // ------------------------------------------------------------------
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -22,7 +22,17 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + path.extname(file.originalname));
   }
 });
-const upload = multer({ storage: storage });
+
+// 🚨 OPEN FILTER: Accepts absolutely any format extension stream without restriction
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 25 * 1024 * 1024 // 📂 Upgraded to 25MB Max Upload Stream Capacity
+  },
+  fileFilter: function (req, file, cb) {
+    cb(null, true);
+  }
+});
 
 
 // ==========================================
@@ -71,7 +81,7 @@ router.get('/my-tasks', auth, async (req, res) => {
 });
 
 // @route   POST api/tasks
-// @desc    Create a new task card and dynamically trigger email assignment notification
+// @desc    Create a new task card safely and trigger dynamic notification emails
 router.post('/', auth, async (req, res) => {
   try {
     const { title, description, priority, project, dueDate, assignedTo, recurrenceType } = req.body;
@@ -96,7 +106,7 @@ router.post('/', auth, async (req, res) => {
       description: description ? description.trim() : '',
       priority: priority || 'Medium',
       project,
-      dueDate,
+      dueDate: dueDate || null,
       assignedTo: assignedTo || null,
       recurrenceType: recurrenceType || 'One-time task',
       createdBy: creatorId
@@ -105,53 +115,54 @@ router.post('/', auth, async (req, res) => {
     await newTask.save();
     console.log(`🎯 New task successfully deployed: [${title}]`);
 
-    // Fetch details of task with user object populated to extract email securely
-    const populatedTask = await Task.findById(newTask._id).populate('assignedTo', 'name email');
+    // SAFE BOUNDARY: Only execute notification hooks if an assignee user exists
+    if (assignedTo) {
+      try {
+        const populatedTask = await Task.findById(newTask._id).populate('assignedTo', 'name email');
 
-    if (populatedTask && populatedTask.assignedTo && populatedTask.assignedTo.email) {
-      const targetEmail = populatedTask.assignedTo.email;
+        if (populatedTask && populatedTask.assignedTo && populatedTask.assignedTo.email) {
+          const targetEmail = populatedTask.assignedTo.email;
 
-      // 1. In-app Live Notification Database entry
-      const taskAlert = new Notification({
-        recipient: assignedTo,
-        sender: creatorId,
-        title: '📋 New Task Assigned',
-        message: `You have been assigned a new task: "${title.trim()}" in your project roadmap deck.`,
-        type: 'task_assigned'
-      });
-      await taskAlert.save();
+          // 1. In-app Live Notification Database entry
+          const taskAlert = new Notification({
+            recipient: assignedTo,
+            sender: creatorId,
+            title: '📋 New Task Assigned',
+            message: `You have been assigned a new task: "${title.trim()}" in your project roadmap deck.`,
+            type: 'task_assigned'
+          });
+          await taskAlert.save();
 
-      if (req.io) {
-        req.io.to(assignedTo).emit('new_notification', taskAlert);
-      }
+          if (req.io) {
+            req.io.to(assignedTo).emit('new_notification', taskAlert);
+          }
 
-      // 2. Production Mail Trigger using centralized req.transporter pipeline
-      if (req.transporter) {
-        const mailOptions = {
-          from: `"Peppy Tracker Hub" <${process.env.EMAIL_USER}>`,
-          to: targetEmail,
-          subject: `📋 New Task Assigned: "${title.trim()}"`,
-          html: `
-            <div style="font-family: sans-serif; padding: 25px; background: #151617; color: white; border-radius: 16px; border: 1px solid #2d2e30;">
-              <h2 style="color: #4cd137; margin: 0 0 5px 0; font-size: 20px; font-weight: 900;">New Assignment Update</h2>
-              <hr style="border: 0; border-top: 1px solid #2d2e30; margin: 15px 0;" />
-              <p style="font-size: 14px; color: #cbd5e1;">Bhai, aapko ek naya task assign kiya gaya hai workspace par:</p>
-              <div style="background: #1e1f21; padding: 15px; border-left: 4px solid #4cd137; border-radius: 8px; color: white; margin: 15px 0;">
-                <strong>Title:</strong> ${title.trim()}<br/>
-                <strong>Priority:</strong> ${priority || 'Medium'}<br/>
-                <strong>Due Date:</strong> ${dueDate ? new Date(dueDate).toLocaleDateString() : 'No Deadline'}
-              </div>
-              <p style="font-size: 12px; color: #848285;">Please check your master dashboard timeline stream layout instantly.</p>
-            </div>
-          `
-        };
-
-        try {
-          await req.transporter.sendMail(mailOptions);
-          console.log(`🚀 Assignment mail successfully dispatched to user: ${targetEmail}`);
-        } catch (mailError) {
-          console.error(`❌ Mail delivery chain broken for assignment to ${targetEmail}:`, mailError.message);
+          // 2. Production Mail Trigger using centralized req.transporter pipeline
+          if (req.transporter) {
+            const mailOptions = {
+              from: `"Peppy Tracker Hub" <${process.env.EMAIL_USER}>`,
+              to: targetEmail,
+              subject: `📋 New Task Assigned: "${title.trim()}"`,
+              html: `
+                <div style="font-family: sans-serif; padding: 25px; background: #151617; color: white; border-radius: 16px; border: 1px solid #2d2e30;">
+                  <h2 style="color: #4cd137; margin: 0 0 5px 0; font-size: 20px; font-weight: 900;">New Assignment Update</h2>
+                  <hr style="border: 0; border-top: 1px solid #2d2e30; margin: 15px 0;" />
+                  <p style="font-size: 14px; color: #cbd5e1;">Bhai, aapko ek naya task assign kiya gaya hai workspace par:</p>
+                  <div style="background: #1e1f21; padding: 15px; border-left: 4px solid #4cd137; border-radius: 8px; color: white; margin: 15px 0;">
+                    <strong>Title:</strong> ${title.trim()}<br/>
+                    <strong>Priority:</strong> ${priority || 'Medium'}<br/>
+                    <strong>Due Date:</strong> ${dueDate ? new Date(dueDate).toLocaleDateString() : 'No Deadline'}
+                  </div>
+                  <p style="font-size: 12px; color: #848285;">Please check your master dashboard timeline stream layout instantly.</p>
+                </div>
+              `
+            };
+            await req.transporter.sendMail(mailOptions);
+            console.log(`🚀 Assignment mail successfully dispatched to user: ${targetEmail}`);
+          }
         }
+      } catch (innerError) {
+        console.error('⚠️ Notification/Mail branch validation bypassed safely:', innerError.message);
       }
     }
 
@@ -217,7 +228,7 @@ router.post('/:id/comments', auth, async (req, res) => {
     task.comments.push(newComment);
     await task.save();
 
-    // 📬 1. TRIGGER BROADCAST MAIL ON EVERY COMMENT IF TRANSPORTER IS PRESENT
+    // 📬 TRIGGER BROADCAST MAIL ON EVERY COMMENT IF TRANSPORTER IS PRESENT
     if (req.transporter) {
       let targetList = [];
       
