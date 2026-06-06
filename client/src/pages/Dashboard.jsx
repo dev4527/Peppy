@@ -40,7 +40,7 @@ function Dashboard() {
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // 🚀 PROJECT ONBOARDING ENGINE STATES
+  // 🚀 PROJECT + WHATSAPP GROUP MERGED ONBOARDING STATES
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [selectedCrewMembers, setSelectedCrewMembers] = useState([]);
@@ -85,14 +85,14 @@ function Dashboard() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
       
-      // Dynamic query paths targeted by account tiers
       let membersUrl = 'https://peppy-we0g.onrender.com/api/auth/users';
       let projectsUrl = 'https://peppy-we0g.onrender.com/api/projects';
 
-      // 🏢 If Manager (CTO/CMO), restrict downstream data fetches straight to their department bounds
+      // 🏢 MANAGER RULES: Strict departmental isolation mapping.
+      // 👑 ADMIN BYPASS: If role is Admin, it skips this and fetches ALL global records.
       if (user?.role === 'Manager' && user?.team) {
         membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(user.team)}`;
-      } else if (currentProject?.teamCategory) {
+      } else if (user?.role !== 'Admin' && currentProject?.teamCategory) {
         membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(currentProject.teamCategory)}`;
       }
 
@@ -103,7 +103,7 @@ function Dashboard() {
       
       setTeamMembers(membersRes.data);
 
-      // Filter project arrays on client state if logged in as localized department lead
+      // Client-side mapping verification to only show projects inside your specific track boundary
       if (user?.role === 'Manager' && user?.team) {
         const structuralFilteredProjects = projectsRes.data.filter(p => p.teamCategory === user.team);
         setProjects(structuralFilteredProjects);
@@ -229,7 +229,7 @@ function Dashboard() {
     }
   };
 
-  // 🚀 DYNAMIC PROJECT ONBOARDING + CHAT GROUP INJECTOR DISPATCHER
+  // 🚀 TWIN DISPATCH LAYER: Saves the layout project matrix and hooks WhatsApp group chats seamlessly
   const handleOnboardProject = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
@@ -238,24 +238,27 @@ function Dashboard() {
     try {
       const token = localStorage.getItem('peppy_token');
       const headers = { Authorization: `Bearer ${token}` };
-      const targetedTeamCategory = user?.team || 'Website Team';
+      
+      // ✅ FIXED fallback alignment logic for Admins and Managers to protect against database field breaks
+      const targetedTeamCategory = user?.role === 'Admin' ? 'Technical Team' : (user?.team || 'Technical Team');
 
-      // 1. Onboard Project configuration mapping straight to backend db
-      const projRes = await axios.post('https://peppy-we0g.onrender.com/api/projects', {
+      // 1. Post project card
+      await axios.post('https://peppy-we0g.onrender.com/api/projects', {
         name: newProjectName.trim(),
         teamCategory: targetedTeamCategory
       }, { headers });
 
-      // 2. Automatically generate matching WhatsApp Group discussion channel context for the workspace crew
+      // 2. Post WhatsApp workspace communications log channel automatically
       await axios.post('https://peppy-we0g.onrender.com/api/chats/groups', {
         name: `${newProjectName.trim()} Sync Group`,
         description: `Official communications broadcast deck for ${newProjectName.trim()} sprint roadmap.`,
-        members: selectedCrewMembers
+        members: selectedCrewMembers,
+        teamScope: targetedTeamCategory // Matching database schema constraint parameters
       }, { headers });
 
       alert(`🚀 Project "${newProjectName.trim()}" and its WhatsApp channel have been deployed together successfully!`);
       
-      // Flush inputs and refresh lists
+      // Flush fields cleanly
       setNewProjectName('');
       setSelectedCrewMembers([]);
       setShowProjectModal(false);
@@ -305,6 +308,7 @@ function Dashboard() {
         showMyTasks={showMyTasks} setShowMyTasks={setShowMyTasks} 
         viewMode={viewMode} setViewMode={setViewMode}
         theme={theme}
+        setShowProjectModal={setShowProjectModal}
       />
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-[#1e1f21] transition-colors duration-300">
@@ -316,7 +320,7 @@ function Dashboard() {
                 {viewMode === 'project_home' ? "🎯 Executive Control Deck" : (viewMode === 'chat_room' ? "💬 Team Operations Room" : (showMyTasks ? "📋 Core Registry Tasks" : (currentProject ? currentProject.name : 'Corporate Control Space')))}
               </h1>
               <p className="text-xs text-slate-500 dark:text-[#848285] mt-0.5 font-medium">
-                Operational Framework Track: <span className="text-red-500 dark:text-[#ff4757] font-black uppercase tracking-wider">{user?.role === 'Manager' ? user.team : (currentProject?.teamCategory || 'Global Infrastructure Control')}</span>
+                Operational Framework Track: <span className="text-red-500 dark:text-[#ff4757] font-black uppercase tracking-wider">{user?.role === 'Manager' ? user.team : (user?.role === 'Admin' ? 'Global Command Hub' : (currentProject?.teamCategory || 'Global Infrastructure Control'))}</span>
               </p>
             </div>
             
@@ -370,7 +374,7 @@ function Dashboard() {
                 </div>
               )}
 
-              {/* 🚀 NEW ASANA SPECIFIC ACTION: Project Onboarding Button with Managerial Level Check Rules */}
+              {/* 🚀 ASANA ROLE GATE: Onboard Project displays for Admin and Heads hierarchy rules */}
               {(user?.role === 'Admin' || user?.role === 'Manager') && (
                 <button 
                   onClick={() => setShowProjectModal(true)} 
@@ -513,7 +517,7 @@ function Dashboard() {
         onRefresh={fetchDashboardTasks} 
       />
 
-      {/* Initialize Card Input Modal Popouts Sheet */}
+      {/* Initialize Task Input Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white dark:bg-[#1e1f21] w-full max-w-md p-6 rounded-2xl border border-slate-200 dark:border-[#333538] shadow-2xl text-left">
@@ -569,47 +573,60 @@ function Dashboard() {
         </div>
       )}
 
-      {/* 🚀 NEW UPGRADE LAYER: REAL-TIME PROJECT ONBOARDING MODAL SHEET WITH WHATSAPP GROUP TRIGGERS */}
+      {/* 🚀 UPGRADED LAYER: FIXED PREMIUM DUAL PROJECT + AUTOMATED CHATS SELECTION MODAL SHEET */}
       {showProjectModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white dark:bg-[#1e1f21] border border-slate-200 dark:border-[#333538] w-full max-w-md p-6 rounded-2xl shadow-2xl text-left">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-[#1e1f21] border border-[#2d2e30] w-full max-w-md p-6 rounded-2xl shadow-2xl text-left">
             <div>
-              <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">🚀 Corporate Project Onboarding Deck</h2>
-              <p className="text-[10px] text-slate-400 mt-0.5">Auto-allocating matching branch parameters: <span className="text-purple-500 font-bold uppercase">{user?.team || 'Website Team'}</span></p>
+              <h2 className="text-sm font-black text-white uppercase tracking-wider">🚀 Initialize Team Project Board</h2>
+              <p className="text-[10px] text-slate-400 mt-0.5">
+                Assign To Corporate Domain Team Branch: <span className="text-red-500 font-bold uppercase">{user?.role === 'Admin' ? 'Global Command Hub' : user?.team}</span>
+              </p>
             </div>
             
             <form onSubmit={handleOnboardProject} className="space-y-4 text-xs mt-4">
               <div>
-                <label className="block text-slate-500 dark:text-[#a2a0a2] font-bold uppercase tracking-wider mb-1.5">Project Roadmap Title</label>
+                <label className="block text-slate-400 font-bold uppercase tracking-wider mb-1.5">Project Name</label>
                 <input 
                   type="text" 
-                  className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-purple-500" 
-                  placeholder="e.g., Core API Refactor Suite" 
+                  className="w-full bg-[#151617] border border-[#333538] rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-red-500 text-xs" 
+                  placeholder="e.g., Q3 Operational Roadmap" 
                   value={newProjectName} 
                   onChange={(e) => setNewProjectName(e.target.value)} 
                   required 
                 />
               </div>
 
+              {/* 📱 AUTOMATED SYNC CHAT VISUAL PIPELINE CHANNEL */}
+              <div className="bg-[#151617]/50 border border-[#2d2e30] p-3 rounded-xl">
+                <label className="block text-emerald-400 font-bold uppercase tracking-wider mb-1">📱 Sync Group Channel Title</label>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  Auto-generated Channel: <span className="text-white font-semibold italic">"{newProjectName ? newProjectName.trim() : 'Project'} Sync Group"</span>
+                </p>
+              </div>
+
+              {/* 👥 CREW CORE CHECKBOX LIST MULTI SELECT ARRAY WITH ROLES & ROBUST STYLING */}
               <div>
-                <label className="block text-slate-500 dark:text-[#a2a0a2] font-bold uppercase tracking-wider mb-1.5">Select Crew Core Members for WhatsApp sync channel</label>
-                <p className="text-[10px] text-slate-400 mb-2">Tick below to map filtered profiles straight to the sprint communication stream.</p>
+                <label className="block text-slate-400 font-bold uppercase tracking-wider mb-1.5">Select Crew Core Members for WhatsApp sync channel</label>
+                <p className="text-[10px] text-slate-500 mb-2">Tick below to add registered profiles straight to the communication stream room.</p>
                 
-                <div className="max-h-36 overflow-y-auto bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl p-2.5 space-y-2 custom-scrollbar">
+                <div className="max-h-44 overflow-y-auto bg-[#151617] border border-[#333538] rounded-xl p-2.5 space-y-2 custom-scrollbar">
                   {teamMembers.length === 0 ? (
-                    <p className="text-[10px] text-slate-500 italic p-2 text-center">No team records found under this structural clearance level.</p>
+                    <p className="text-[10px] text-red-400 font-bold italic p-4 text-center">No team records found under this structural clearance level. Ensure dummy employees are registered first!</p>
                   ) : (
                     teamMembers.map(u => (
-                      <label key={u._id} className="flex items-center gap-2.5 px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-[#1e1f21] rounded-lg cursor-pointer text-slate-700 dark:text-slate-300 transition">
+                      <label key={u._id} className="flex items-center gap-3 px-3 py-2 hover:bg-[#252628] rounded-xl cursor-pointer text-slate-300 transition border border-transparent hover:border-[#333538]">
                         <input 
                           type="checkbox" 
                           checked={selectedCrewMembers.includes(u._id)}
                           onChange={() => handleCrewToggle(u._id)}
-                          className="accent-purple-500 cursor-pointer h-3.5 w-3.5 rounded border-slate-300"
+                          className="accent-red-500 cursor-pointer h-4 w-4 rounded border-[#333538]"
                         />
-                        <div className="flex flex-col">
-                          <span className="font-bold text-[11px]">{u.name}</span>
-                          <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-semibold">{u.role} &bull; {u.team}</span>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-xs text-white truncate">{u.name}</span>
+                          <span className="text-[9px] text-red-400 uppercase font-black tracking-wider mt-0.5">
+                            Designation: {u.role === 'Manager' ? `⚙️ Head of ${u.team}` : `👤 ${u.role}`}
+                          </span>
                         </div>
                       </label>
                     ))
@@ -618,8 +635,20 @@ function Dashboard() {
               </div>
 
               <div className="flex gap-3 pt-2">
-                <button type="submit" disabled={loading} className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black uppercase tracking-wider py-2.5 rounded-xl transition disabled:opacity-50 cursor-pointer">{loading ? 'Deploying...' : 'Deploy Project 🚀'}</button>
-                <button type="button" onClick={() => setShowProjectModal(false)} className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl transition cursor-pointer">Cancel</button>
+                <button 
+                  type="submit" 
+                  disabled={loading} 
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white font-black uppercase tracking-wider py-2.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-lg shadow-red-500/10"
+                >
+                  {loading ? 'Deploying...' : 'Build Space 🚀'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setShowProjectModal(false)} 
+                  className="flex-1 bg-[#252628] hover:bg-[#2d2e30] text-slate-400 font-bold py-2.5 rounded-xl transition cursor-pointer"
+                >
+                  Cancel
+                </button>
               </div>
             </form>
           </div>
