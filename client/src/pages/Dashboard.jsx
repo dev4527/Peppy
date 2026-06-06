@@ -40,6 +40,11 @@ function Dashboard() {
   const [dueDate, setDueDate] = useState('');
   const [loading, setLoading] = useState(false);
   
+  // 🚀 PROJECT ONBOARDING ENGINE STATES
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [selectedCrewMembers, setSelectedCrewMembers] = useState([]);
+
   // 🎯 ACTIVE SELECTED TASK STATE (Drawer Matrix)
   const [selectedTask, setSelectedTask] = useState(null);
 
@@ -74,24 +79,38 @@ function Dashboard() {
     }
   };
 
-  // Fetch employees dynamically filtered by the active project's team category
+  // 👑 ASANA SPECIFIC BOUNDARY CONTROL: Exposes visibility segments relative to user role hierarchy mapping
   const fetchInitialGlobalData = async () => {
     const token = localStorage.getItem('peppy_token');
     try {
       const headers = { Authorization: `Bearer ${token}` };
       
+      // Dynamic query paths targeted by account tiers
       let membersUrl = 'https://peppy-we0g.onrender.com/api/auth/users';
-      if (currentProject?.teamCategory) {
+      let projectsUrl = 'https://peppy-we0g.onrender.com/api/projects';
+
+      // 🏢 If Manager (CTO/CMO), restrict downstream data fetches straight to their department bounds
+      if (user?.role === 'Manager' && user?.team) {
+        membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(user.team)}`;
+      } else if (currentProject?.teamCategory) {
         membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(currentProject.teamCategory)}`;
       }
 
       const [membersRes, projectsRes] = await Promise.all([
         axios.get(membersUrl, { headers }),
-        axios.get('https://peppy-we0g.onrender.com/api/projects', { headers })
+        axios.get(projectsUrl, { headers })
       ]);
       
       setTeamMembers(membersRes.data);
-      setProjects(projectsRes.data);
+
+      // Filter project arrays on client state if logged in as localized department lead
+      if (user?.role === 'Manager' && user?.team) {
+        const structuralFilteredProjects = projectsRes.data.filter(p => p.teamCategory === user.team);
+        setProjects(structuralFilteredProjects);
+      } else {
+        setProjects(projectsRes.data);
+      }
+
     } catch (err) {
       console.error('Core catalog cluster synchronization fail:', err);
     }
@@ -115,13 +134,11 @@ function Dashboard() {
       
       setTasks(freshDataDeck);
 
-      // ✅ STATE CONNECTION LOCK: This keeps the open drawer updated with fresh comments/attachments instantly!
       if (selectedTask) {
         const currentlyInspectedTask = freshDataDeck.find(t => t._id === selectedTask._id);
         if (currentlyInspectedTask) {
           setSelectedTask(currentlyInspectedTask);
         } else {
-          // Deep tracking query fallback
           const singleTaskRes = await axios.get(`https://peppy-we0g.onrender.com/api/tasks/${selectedTask._id}`, {
             headers: { Authorization: `Bearer ${token}` }
           });
@@ -164,8 +181,10 @@ function Dashboard() {
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   useEffect(() => {
-    fetchInitialGlobalData();
-  }, [currentProject]);
+    if (user) {
+      fetchInitialGlobalData();
+    }
+  }, [currentProject, user]);
 
   useEffect(() => {
     fetchDashboardTasks();
@@ -210,6 +229,49 @@ function Dashboard() {
     }
   };
 
+  // 🚀 DYNAMIC PROJECT ONBOARDING + CHAT GROUP INJECTOR DISPATCHER
+  const handleOnboardProject = async (e) => {
+    e.preventDefault();
+    if (!newProjectName.trim()) return;
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('peppy_token');
+      const headers = { Authorization: `Bearer ${token}` };
+      const targetedTeamCategory = user?.team || 'Website Team';
+
+      // 1. Onboard Project configuration mapping straight to backend db
+      const projRes = await axios.post('https://peppy-we0g.onrender.com/api/projects', {
+        name: newProjectName.trim(),
+        teamCategory: targetedTeamCategory
+      }, { headers });
+
+      // 2. Automatically generate matching WhatsApp Group discussion channel context for the workspace crew
+      await axios.post('https://peppy-we0g.onrender.com/api/chats/groups', {
+        name: `${newProjectName.trim()} Sync Group`,
+        description: `Official communications broadcast deck for ${newProjectName.trim()} sprint roadmap.`,
+        members: selectedCrewMembers
+      }, { headers });
+
+      alert(`🚀 Project "${newProjectName.trim()}" and its WhatsApp channel have been deployed together successfully!`);
+      
+      // Flush inputs and refresh lists
+      setNewProjectName('');
+      setSelectedCrewMembers([]);
+      setShowProjectModal(false);
+      fetchInitialGlobalData();
+    } catch (err) {
+      console.error('❌ Project onboarding suite failure:', err);
+      alert('Failed to execute continuous integration onboarding sequence.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCrewToggle = (id) => {
+    setSelectedCrewMembers(prev => prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]);
+  };
+
   const moveTaskStatus = async (taskId, currentStatus) => {
     const statusOrder = ['To Do', 'In Progress', 'Review', 'Completed'];
     const currentIndex = statusOrder.indexOf(currentStatus);
@@ -250,12 +312,11 @@ function Dashboard() {
         <header className="bg-white dark:bg-[#1e1f21] border-b border-slate-200 dark:border-[#2d2e30] px-8 pt-5 pb-1 flex flex-col shrink-0 gap-3 transition-colors duration-300">
           <div className="flex justify-between items-center">
             <div>
-              {/* ✅ CORE LAYOUT TITLES UPDATED TO PREMIUM ARCHITECTURE STYLE */}
               <h1 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
                 {viewMode === 'project_home' ? "🎯 Executive Control Deck" : (viewMode === 'chat_room' ? "💬 Team Operations Room" : (showMyTasks ? "📋 Core Registry Tasks" : (currentProject ? currentProject.name : 'Corporate Control Space')))}
               </h1>
               <p className="text-xs text-slate-500 dark:text-[#848285] mt-0.5 font-medium">
-                Operational Framework Track: <span className="text-red-500 dark:text-[#ff4757] font-black uppercase tracking-wider">{currentProject?.teamCategory || 'Global Infrastructure Control'}</span>
+                Operational Framework Track: <span className="text-red-500 dark:text-[#ff4757] font-black uppercase tracking-wider">{user?.role === 'Manager' ? user.team : (currentProject?.teamCategory || 'Global Infrastructure Control')}</span>
               </p>
             </div>
             
@@ -307,6 +368,16 @@ function Dashboard() {
                     )}
                   </div>
                 </div>
+              )}
+
+              {/* 🚀 NEW ASANA SPECIFIC ACTION: Project Onboarding Button with Managerial Level Check Rules */}
+              {(user?.role === 'Admin' || user?.role === 'Manager') && (
+                <button 
+                  onClick={() => setShowProjectModal(true)} 
+                  className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-extrabold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl cursor-pointer shadow-md transition-all active:scale-[0.98]"
+                >
+                  🚀 Onboard Project
+                </button>
               )}
 
               <button 
@@ -436,7 +507,6 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* ✅ CRITICAL BINDING SECURED: Passing the onRefresh callback pipeline so TaskDrawer can alert Dashboard */}
       <TaskDrawer 
         task={selectedTask} 
         onClose={() => setSelectedTask(null)} 
@@ -493,6 +563,63 @@ function Dashboard() {
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={loading} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-xl transition disabled:opacity-50 cursor-pointer">{loading ? 'Deploying...' : 'Deploy Card'}</button>
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl transition cursor-pointer">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 🚀 NEW UPGRADE LAYER: REAL-TIME PROJECT ONBOARDING MODAL SHEET WITH WHATSAPP GROUP TRIGGERS */}
+      {showProjectModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white dark:bg-[#1e1f21] border border-slate-200 dark:border-[#333538] w-full max-w-md p-6 rounded-2xl shadow-2xl text-left">
+            <div>
+              <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">🚀 Corporate Project Onboarding Deck</h2>
+              <p className="text-[10px] text-slate-400 mt-0.5">Auto-allocating matching branch parameters: <span className="text-purple-500 font-bold uppercase">{user?.team || 'Website Team'}</span></p>
+            </div>
+            
+            <form onSubmit={handleOnboardProject} className="space-y-4 text-xs mt-4">
+              <div>
+                <label className="block text-slate-500 dark:text-[#a2a0a2] font-bold uppercase tracking-wider mb-1.5">Project Roadmap Title</label>
+                <input 
+                  type="text" 
+                  className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-purple-500" 
+                  placeholder="e.g., Core API Refactor Suite" 
+                  value={newProjectName} 
+                  onChange={(e) => setNewProjectName(e.target.value)} 
+                  required 
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-500 dark:text-[#a2a0a2] font-bold uppercase tracking-wider mb-1.5">Select Crew Core Members for WhatsApp sync channel</label>
+                <p className="text-[10px] text-slate-400 mb-2">Tick below to map filtered profiles straight to the sprint communication stream.</p>
+                
+                <div className="max-h-36 overflow-y-auto bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl p-2.5 space-y-2 custom-scrollbar">
+                  {teamMembers.length === 0 ? (
+                    <p className="text-[10px] text-slate-500 italic p-2 text-center">No team records found under this structural clearance level.</p>
+                  ) : (
+                    teamMembers.map(u => (
+                      <label key={u._id} className="flex items-center gap-2.5 px-2 py-1.5 hover:bg-slate-100 dark:hover:bg-[#1e1f21] rounded-lg cursor-pointer text-slate-700 dark:text-slate-300 transition">
+                        <input 
+                          type="checkbox" 
+                          checked={selectedCrewMembers.includes(u._id)}
+                          onChange={() => handleCrewToggle(u._id)}
+                          className="accent-purple-500 cursor-pointer h-3.5 w-3.5 rounded border-slate-300"
+                        />
+                        <div className="flex flex-col">
+                          <span className="font-bold text-[11px]">{u.name}</span>
+                          <span className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-semibold">{u.role} &bull; {u.team}</span>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button type="submit" disabled={loading} className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-black uppercase tracking-wider py-2.5 rounded-xl transition disabled:opacity-50 cursor-pointer">{loading ? 'Deploying...' : 'Deploy Project 🚀'}</button>
+                <button type="button" onClick={() => setShowProjectModal(false)} className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl transition cursor-pointer">Cancel</button>
               </div>
             </form>
           </div>
