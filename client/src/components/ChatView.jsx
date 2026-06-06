@@ -49,7 +49,8 @@ function ChatView() {
   const fetchInitialData = async () => {
     try {
       const token = localStorage.getItem('peppy_token');
-      const headers = { Authorization: `Bearer ${token}` };
+      // ✅ FIXED: Changed to x-auth-token mapping style to match your express gateway exactly
+      const headers = { 'x-auth-token': token };
 
       // 1. Fetch Users
       const usersRes = await axios.get('https://peppy-we0g.onrender.com/api/auth/users', { headers });
@@ -85,7 +86,7 @@ function ChatView() {
       if (!activeChatTarget) return;
       try {
         const token = localStorage.getItem('peppy_token');
-        const headers = { Authorization: `Bearer ${token}` };
+        const headers = { 'x-auth-token': token };
 
         // Differentiate endpoint query by checking schema types properties
         const isGroup = activeChatTarget.hasOwnProperty('teamScope');
@@ -106,8 +107,11 @@ function ChatView() {
   useEffect(() => {
     // Listen to 1-on-1 private logs
     socket.on('receive_direct_message', (incomingMessage) => {
-      if (activeChatTarget && !activeChatTarget.hasOwnProperty('teamScope') && incomingMessage.sender === activeChatTarget._id) {
-        setMessages(prev => [...prev, incomingMessage]);
+      if (activeChatTarget && !activeChatTarget.hasOwnProperty('teamScope')) {
+        const incomingSenderId = incomingMessage.sender?._id || incomingMessage.sender;
+        if (incomingSenderId === activeChatTarget._id) {
+          setMessages(prev => [...prev, incomingMessage]);
+        }
       }
     });
 
@@ -140,7 +144,7 @@ function ChatView() {
         description: newGroupDesc.trim(),
         members: selectedMembers
       }, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { 'x-auth-token': token }
       });
 
       // Update Local arrays instantly
@@ -169,6 +173,7 @@ function ChatView() {
 
     const token = localStorage.getItem('peppy_token');
     const isGroupChat = activeChatTarget.hasOwnProperty('teamScope');
+    const headers = { 'x-auth-token': token };
 
     try {
       if (isGroupChat) {
@@ -176,9 +181,7 @@ function ChatView() {
         const res = await axios.post('https://peppy-we0g.onrender.com/api/chats/group/send', {
           groupId: activeChatTarget._id,
           text: typedMessage.trim()
-        }, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        }, { headers });
 
         // Broadcast over socket room boundaries
         socket.emit('send_group_message', {
@@ -196,7 +199,7 @@ function ChatView() {
         // 👤 PRIVATE 1-ON-1 TARGETING ROUTE
         const res = await axios.post('https://peppy-we0g.onrender.com/api/chats/send', 
           { receiverId: activeChatTarget._id, text: typedMessage.trim() },
-          { headers: { Authorization: `Bearer ${token}` } }
+          { headers }
         );
 
         socket.emit('send_direct_message', {
@@ -267,7 +270,7 @@ function ChatView() {
                 className={`flex items-center gap-3 p-3 rounded-xl transition cursor-pointer border ${activeChatTarget?._id === member._id ? 'bg-red-500/10 border-red-500/40 text-white' : 'bg-transparent border-transparent hover:bg-[#2a2b2d]/50 text-slate-400 hover:text-white'}`}
               >
                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-red-500 to-amber-500 flex items-center justify-center font-black text-xs text-white uppercase shadow-md shrink-0">
-                  {member.name.substring(0, 2)}
+                  {member.name ? member.name.substring(0, 2) : 'OP'}
                 </div>
                 <div className="min-w-0">
                   <h4 className="text-xs font-bold truncate">{member.name}</h4>
@@ -319,7 +322,8 @@ function ChatView() {
             <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[#1a1b1c]/40 relative z-10">
               {messages.map((msg) => {
                 const currentUserId = user?.id || user?._id;
-                const isMe = (msg.sender?._id || msg.sender) === currentUserId;
+                const msgSenderId = msg.sender?._id || msg.sender;
+                const isMe = msgSenderId === currentUserId;
                 const msgSenderName = msg.sender?.name || 'Operator';
 
                 return (
