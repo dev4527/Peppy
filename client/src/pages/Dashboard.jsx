@@ -87,19 +87,16 @@ function Dashboard() {
     try {
       const headers = { Authorization: `Bearer ${token}` };
       
+      // Fallback base configuration loops
       let membersUrl = 'https://peppy-we0g.onrender.com/api/auth/users';
       let projectsUrl = 'https://peppy-we0g.onrender.com/api/projects';
 
-      // 👑 ADMIN ACCESS CHECK: Admin skips all dynamic constraints to query everyone
-      if (user?.role === 'Admin') {
+      // 🏢 REAL-TIME WORKAROUND DETECTOR: Agar state laggy hai, toh default open API target karo taaki crash na ho
+      if (!user || user?.role === 'Admin') {
         membersUrl = 'https://peppy-we0g.onrender.com/api/auth/users';
-      }
-      // 🏢 MANAGER RULES: Strict departmental isolation mapping
-      else if (user?.role === 'Manager' && user?.team) {
+      } else if (user?.role === 'Manager' && user?.team) {
         membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(user.team)}`;
-      } 
-      // 👤 REGULAR FALLBACK
-      else if (currentProject?.teamCategory) {
+      } else if (currentProject?.teamCategory) {
         membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(currentProject.teamCategory)}`;
       }
 
@@ -108,14 +105,14 @@ function Dashboard() {
         axios.get(projectsUrl, { headers })
       ]);
       
-      setTeamMembers(membersRes.data);
+      // Filter mapping framework safely locked to protect client views
+      setTeamMembers(membersRes.data || []);
 
-      // Client-side mapping verification to only show projects inside your specific track boundary
       if (user?.role === 'Manager' && user?.team) {
-        const structuralFilteredProjects = projectsRes.data.filter(p => p.teamCategory === user.team);
+        const structuralFilteredProjects = (projectsRes.data || []).filter(p => p.teamCategory === user.team);
         setProjects(structuralFilteredProjects);
       } else {
-        setProjects(projectsRes.data);
+        setProjects(projectsRes.data || []);
       }
 
     } catch (err) {
@@ -188,9 +185,7 @@ function Dashboard() {
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   useEffect(() => {
-    if (user) {
-      fetchInitialGlobalData();
-    }
+    fetchInitialGlobalData();
   }, [currentProject, user]);
 
   useEffect(() => {
@@ -236,7 +231,7 @@ function Dashboard() {
     }
   };
 
-  // 🚀 TWIN DISPATCH LAYER: Saves the layout project matrix and hooks WhatsApp group chats seamlessly
+  // 🚀 FIXED ENHANCED TRANSACTION ENGINE: Prevents any missing user reference drops context permanent fix
   const handleOnboardProject = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
@@ -246,23 +241,32 @@ function Dashboard() {
       const token = localStorage.getItem('peppy_token');
       const headers = { Authorization: `Bearer ${token}` };
       
-      // Dynamic fallback team configuration mapping standard
       const targetedTeamCategory = user?.role === 'Admin' ? 'Technical Team' : (user?.team || 'Technical Team');
-      const currentUserId = user?.id || user?._id;
-
-      // 🧠 SAFEGUARD MASTER RULE: If array is empty, force self-inject current login user to protect backend constraints
+      
+      // ⚡ FALLBACK IMMUNIZATION: If state user frame drops out, pull alternative verification seeds directly
       let finalGroupMembers = [...selectedCrewMembers];
-      if (finalGroupMembers.length === 0 && currentUserId) {
-        finalGroupMembers.push(currentUserId);
+      
+      if (finalGroupMembers.length === 0) {
+        // Direct safety request to bypass context lags completely
+        const backupProfileRes = await axios.get('https://peppy-we0g.onrender.com/api/auth/me', { headers });
+        if (backupProfileRes.data?._id || backupProfileRes.data?.id) {
+          finalGroupMembers.push(backupProfileRes.data._id || backupProfileRes.data.id);
+        }
       }
 
-      // 1. Post project card
+      if (finalGroupMembers.length === 0) {
+        alert("🔒 Profile authentication synchronization retry in progress. Please close and re-open modal.");
+        setLoading(false);
+        return;
+      }
+
+      // 1. Post project card configuration
       await axios.post('https://peppy-we0g.onrender.com/api/projects', {
         name: newProjectName.trim(),
         teamCategory: targetedTeamCategory
       }, { headers });
 
-      // 2. Post WhatsApp workspace communications log channel automatically
+      // 2. Post WhatsApp workspace communications channel deck
       await axios.post('https://peppy-we0g.onrender.com/api/chats/groups', {
         name: `${newProjectName.trim()} Sync Group`,
         description: `Official communications broadcast deck for ${newProjectName.trim()} sprint roadmap.`,
@@ -272,7 +276,6 @@ function Dashboard() {
 
       alert(`🚀 Project "${newProjectName.trim()}" and its WhatsApp channel have been deployed together successfully!`);
       
-      // Flush fields cleanly
       setNewProjectName('');
       setSelectedCrewMembers([]);
       setShowProjectModal(false);
@@ -388,7 +391,6 @@ function Dashboard() {
                 </div>
               )}
 
-              {/* 🚀 ASANA ROLE GATE: Onboard Project displays for Admin and Heads hierarchy rules */}
               {(user?.role === 'Admin' || user?.role === 'Manager') && (
                 <button 
                   onClick={() => setShowProjectModal(true)} 
@@ -531,7 +533,7 @@ function Dashboard() {
         onRefresh={fetchDashboardTasks} 
       />
 
-      {/* Initialize Card Input Modal Popouts Sheet */}
+      {/* Initialize Card Input Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white dark:bg-[#1e1f21] w-full max-w-md p-6 rounded-2xl border border-slate-200 dark:border-[#333538] shadow-2xl text-left">
@@ -587,7 +589,7 @@ function Dashboard() {
         </div>
       )}
 
-      {/* 🚀 FIXED PREMIUM DUAL PROJECT + AUTOMATED CHATS SELECTION MODAL SHEET */}
+      {/* 🚀 UPGRADED LAYER: FIXED PREMIUM DUAL PROJECT + AUTOMATED CHATS SELECTION MODAL SHEET */}
       {showProjectModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-[#1e1f21] border border-[#2d2e30] w-full max-w-md p-6 rounded-2xl shadow-2xl text-left">
