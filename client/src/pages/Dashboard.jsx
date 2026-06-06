@@ -82,17 +82,24 @@ function Dashboard() {
   // 👑 ASANA SPECIFIC BOUNDARY CONTROL: Exposes visibility segments relative to user role hierarchy mapping
   const fetchInitialGlobalData = async () => {
     const token = localStorage.getItem('peppy_token');
+    if (!token) return;
+
     try {
       const headers = { Authorization: `Bearer ${token}` };
       
       let membersUrl = 'https://peppy-we0g.onrender.com/api/auth/users';
       let projectsUrl = 'https://peppy-we0g.onrender.com/api/projects';
 
-      // 🏢 MANAGER RULES: Strict departmental isolation mapping.
-      // 👑 ADMIN BYPASS: If role is Admin, it skips this and fetches ALL global records perfectly.
-      if (user?.role === 'Manager' && user?.team) {
+      // 👑 ADMIN ACCESS CHECK: Admin skips all dynamic constraints to query everyone
+      if (user?.role === 'Admin') {
+        membersUrl = 'https://peppy-we0g.onrender.com/api/auth/users';
+      }
+      // 🏢 MANAGER RULES: Strict departmental isolation mapping
+      else if (user?.role === 'Manager' && user?.team) {
         membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(user.team)}`;
-      } else if (user?.role !== 'Admin' && currentProject?.teamCategory) {
+      } 
+      // 👤 REGULAR FALLBACK
+      else if (currentProject?.teamCategory) {
         membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(currentProject.teamCategory)}`;
       }
 
@@ -239,7 +246,7 @@ function Dashboard() {
       const token = localStorage.getItem('peppy_token');
       const headers = { Authorization: `Bearer ${token}` };
       
-      // Fixed dynamic fallback team configuration mapping
+      // Dynamic fallback team configuration mapping standard
       const targetedTeamCategory = user?.role === 'Admin' ? 'Technical Team' : (user?.team || 'Technical Team');
       const currentUserId = user?.id || user?._id;
 
@@ -249,7 +256,7 @@ function Dashboard() {
         finalGroupMembers.push(currentUserId);
       }
 
-      // 1. Post project board
+      // 1. Post project card
       await axios.post('https://peppy-we0g.onrender.com/api/projects', {
         name: newProjectName.trim(),
         teamCategory: targetedTeamCategory
@@ -259,7 +266,7 @@ function Dashboard() {
       await axios.post('https://peppy-we0g.onrender.com/api/chats/groups', {
         name: `${newProjectName.trim()} Sync Group`,
         description: `Official communications broadcast deck for ${newProjectName.trim()} sprint roadmap.`,
-        members: finalGroupMembers, // ✅ Guaranteed never empty!
+        members: finalGroupMembers, 
         teamScope: targetedTeamCategory 
       }, { headers });
 
@@ -580,7 +587,7 @@ function Dashboard() {
         </div>
       )}
 
-      {/* 🚀 UPGRADED LAYER: FIXED PREMIUM DUAL PROJECT + AUTOMATED CHATS SELECTION MODAL SHEET */}
+      {/* 🚀 FIXED PREMIUM DUAL PROJECT + AUTOMATED CHATS SELECTION MODAL SHEET */}
       {showProjectModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-[#1e1f21] border border-[#2d2e30] w-full max-w-md p-6 rounded-2xl shadow-2xl text-left">
