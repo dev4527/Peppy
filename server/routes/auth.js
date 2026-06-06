@@ -6,9 +6,9 @@ const User = require('../models/User');
 const auth = require('../middleware/authMiddleware');
 
 // @route   POST api/auth/register
-// @desc    Register a new employee/user with team category context assignment
+// @desc    Register a new employee/user with smart dynamic manager tracking assignment
 router.post('/register', async (req, res) => {
-  const { name, email, password, role, team } = req.body;
+  const { name, email, password, role, managerTarget } = req.body;
 
   try {
     let user = await User.findOne({ email });
@@ -16,13 +16,45 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'User identity profile already exists.' });
     }
 
-    // Force strict structure defaults alignment
+    // 🧠 DYNAMIC HIERARCHY MAPPER ENGINE
+    let finalRole = 'Team Member'; // Default database normalization role
+    let finalTeam = 'Website Team'; // Default fallback structure
+
+    // Case 1: User is Super Admin / CEO
+    if (role === 'Admin') {
+      finalRole = 'Admin';
+      finalTeam = 'Global Infrastructure Control';
+    }
+    // Case 2: User is onboarding as a Level 2 Department Head
+    else if (['CTO', 'CMO', 'COO', 'CPO'].includes(role)) {
+      finalRole = 'Manager'; // Grants managerial access metrics globally inside DB
+      
+      if (role === 'CTO') finalTeam = 'Technical Team';
+      else if (role === 'CMO') finalTeam = 'Marketing Team';
+      else if (role === 'COO') finalTeam = 'Operations Team';
+      else if (role === 'CPO') finalTeam = 'Product Team';
+    }
+    // Case 3: User is onboarding as a Regular Employee (Routes based on chosen reporting manager)
+    else if (role === 'Employee') {
+      finalRole = 'Team Member';
+      
+      if (!managerTarget) {
+        return res.status(400).json({ message: 'Employees must select a reporting executive manager.' });
+      }
+
+      if (managerTarget === 'CTO') finalTeam = 'Technical Team';
+      else if (managerTarget === 'CMO') finalTeam = 'Marketing Team';
+      else if (managerTarget === 'COO') finalTeam = 'Operations Team';
+      else if (managerTarget === 'CPO') finalTeam = 'Product Team';
+    }
+
+    // Assigning filtered parameters to new Mongoose user instance safely
     user = new User({
       name: name.trim(),
       email: email.trim(),
       password,
-      role: role || 'Team Member',
-      team: team || 'Website Team' // Default fallback structural tracking segment
+      role: finalRole,
+      team: finalTeam
     });
 
     // Encrypt password
@@ -30,6 +62,7 @@ router.post('/register', async (req, res) => {
     user.password = await bcrypt.hash(password, salt);
 
     await user.save();
+    console.log(`🚀 Automated Hierarchy Routing Completed for: [${user.name}] as [${user.role}] inside [${user.team}]`);
 
     // Generate JWT Token Matrix
     const payload = { user: { id: user.id } };
@@ -104,7 +137,7 @@ router.get('/users', auth, async (req, res) => {
     if (currentUser.role === 'Admin') {
       users = await User.find().select('-password').sort({ createdAt: 1 });
     } 
-    // 🏢 MANAGER ACCESS: Filter data bounds to only expose their specific team cluster
+    // 🏢 MANAGER ACCESS: Filter data bounds to only expose their specific team cluster (e.g., Technical Team only)
     else if (currentUser.role === 'Manager') {
       users = await User.find({ team: currentUser.team }).select('-password').sort({ createdAt: 1 });
     } 
