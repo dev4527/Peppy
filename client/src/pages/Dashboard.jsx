@@ -70,10 +70,12 @@ function Dashboard() {
   const fetchMyAlerts = async () => {
     try {
       const token = localStorage.getItem('peppy_token');
-      const res = await axios.get('https://peppy-we0g.onrender.com/api/notifications', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setNotifications(res.data);
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'x-auth-token': token 
+      };
+      const res = await axios.get('https://peppy-we0g.onrender.com/api/notifications', { headers });
+      setNotifications(res.data || []);
     } catch (err) {
       console.error('Failed to pull system notification matrix:', err);
     }
@@ -85,16 +87,21 @@ function Dashboard() {
     if (!token) return;
 
     try {
-      const headers = { Authorization: `Bearer ${token}` };
+      // ⚡ BACKEND IMMUNIZATION PIPELINE: Passing both token headers globally to bypass middleware constraints
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'x-auth-token': token 
+      };
       
-      // Fallback base configuration loops
       let membersUrl = 'https://peppy-we0g.onrender.com/api/auth/users';
       let projectsUrl = 'https://peppy-we0g.onrender.com/api/projects';
 
-      // 🏢 REAL-TIME WORKAROUND DETECTOR: Agar state laggy hai, toh default open API target karo taaki crash na ho
-      if (!user || user?.role === 'Admin') {
+      // 👑 ADMIN FORCED BYPASS ACCESSIBILITY RULES
+      if (user?.role === 'Admin') {
         membersUrl = 'https://peppy-we0g.onrender.com/api/auth/users';
-      } else if (user?.role === 'Manager' && user?.team) {
+      }
+      // 🏢 MANAGER RULES: Strict departmental isolation mapping
+      else if (user?.role === 'Manager' && user?.team) {
         membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(user.team)}`;
       } else if (currentProject?.teamCategory) {
         membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(currentProject.teamCategory)}`;
@@ -105,7 +112,6 @@ function Dashboard() {
         axios.get(projectsUrl, { headers })
       ]);
       
-      // Filter mapping framework safely locked to protect client views
       setTeamMembers(membersRes.data || []);
 
       if (user?.role === 'Manager' && user?.team) {
@@ -123,17 +129,24 @@ function Dashboard() {
   // 🔄 THE REALTIME MASTER DATA STREAM SYNCHRONIZER
   const fetchDashboardTasks = async () => {
     const token = localStorage.getItem('peppy_token');
+    if (!token) return;
+
     try {
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'x-auth-token': token 
+      };
       let freshDataDeck = [];
+
       if (showMyTasks) {
-        const res = await axios.get('https://peppy-we0g.onrender.com/api/tasks/my-tasks', { headers: { Authorization: `Bearer ${token}` } });
-        freshDataDeck = res.data;
+        const res = await axios.get('https://peppy-we0g.onrender.com/api/tasks/my-tasks', { headers });
+        freshDataDeck = res.data || [];
       } else if (currentProject?._id) {
-        const res = await axios.get(`https://peppy-we0g.onrender.com/api/tasks/project/${currentProject._id}`, { headers: { Authorization: `Bearer ${token}` } });
-        freshDataDeck = res.data;
+        const res = await axios.get(`https://peppy-we0g.onrender.com/api/tasks/project/${currentProject._id}`, { headers });
+        freshDataDeck = res.data || [];
       } else {
-        const res = await axios.get('https://peppy-we0g.onrender.com/api/tasks/my-tasks', { headers: { Authorization: `Bearer ${token}` } });
-        freshDataDeck = res.data;
+        const res = await axios.get('https://peppy-we0g.onrender.com/api/tasks/my-tasks', { headers });
+        freshDataDeck = res.data || [];
       }
       
       setTasks(freshDataDeck);
@@ -143,9 +156,7 @@ function Dashboard() {
         if (currentlyInspectedTask) {
           setSelectedTask(currentlyInspectedTask);
         } else {
-          const singleTaskRes = await axios.get(`https://peppy-we0g.onrender.com/api/tasks/${selectedTask._id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const singleTaskRes = await axios.get(`https://peppy-we0g.onrender.com/api/tasks/${selectedTask._id}`, { headers });
           if (singleTaskRes.data) {
             setSelectedTask(singleTaskRes.data);
           }
@@ -173,9 +184,11 @@ function Dashboard() {
   const handleMarkRead = async (id) => {
     try {
       const token = localStorage.getItem('peppy_token');
-      await axios.put(`https://peppy-we0g.onrender.com/api/notifications/${id}/read`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'x-auth-token': token 
+      };
+      await axios.put(`https://peppy-we0g.onrender.com/api/notifications/${id}/read`, {}, { headers });
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
     } catch (err) {
       console.error('Failed to update alert state:', err);
@@ -185,7 +198,9 @@ function Dashboard() {
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   useEffect(() => {
-    fetchInitialGlobalData();
+    if (user) {
+      fetchInitialGlobalData();
+    }
   }, [currentProject, user]);
 
   useEffect(() => {
@@ -208,30 +223,41 @@ function Dashboard() {
     }
   }, [currentProject, projects, showModal]);
 
+  // 📝 DEPLOY TASK COMPONENT ACTION ENGINE WITH SAFETY HEADER HOOK
   const handleCreateTask = async (e) => {
     e.preventDefault();
     const finalProjectID = targetProject || currentProject?._id || (projects.length > 0 ? projects[0]._id : null);
     
-    if (!finalProjectID || !title.trim()) return;
+    if (!finalProjectID || !title.trim()) {
+      alert("Please designate a valid tracking workspace target board project.");
+      return;
+    }
 
     setLoading(true);
     try {
       const token = localStorage.getItem('peppy_token');
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'x-auth-token': token 
+      };
+
       await axios.post('https://peppy-we0g.onrender.com/api/tasks', 
         { title, description, priority, project: finalProjectID, dueDate, assignedTo: assignedTo || null, recurrenceType },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       );
       setTitle(''); setDescription(''); setPriority('Medium'); setDueDate(''); setAssignedTo(''); setRecurrenceType('One-time task');
       setShowModal(false);
       fetchDashboardTasks();
+      alert("📋 Task card successfully deployed into work lanes board!");
     } catch (err) { 
       console.error(err);
+      alert(err.response?.data?.message || "Failed to deploy new task item card.");
     } finally { 
       setLoading(false); 
     }
   };
 
-  // 🚀 FIXED ENHANCED TRANSACTION ENGINE: Prevents any missing user reference drops context permanent fix
+  // 🚀 PROJECT + WHATSAPP GROUPS TWIN DISPATCH LAYER
   const handleOnboardProject = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
@@ -239,34 +265,27 @@ function Dashboard() {
     setLoading(true);
     try {
       const token = localStorage.getItem('peppy_token');
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'x-auth-token': token 
+      };
       
       const targetedTeamCategory = user?.role === 'Admin' ? 'Technical Team' : (user?.team || 'Technical Team');
-      
-      // ⚡ FALLBACK IMMUNIZATION: If state user frame drops out, pull alternative verification seeds directly
+      const currentUserId = user?.id || user?._id;
+
+      // 🧠 SAFEGUARD MASTER TRACK: Forces automated self-injection to secure array counts bounds
       let finalGroupMembers = [...selectedCrewMembers];
-      
-      if (finalGroupMembers.length === 0) {
-        // Direct safety request to bypass context lags completely
-        const backupProfileRes = await axios.get('https://peppy-we0g.onrender.com/api/auth/me', { headers });
-        if (backupProfileRes.data?._id || backupProfileRes.data?.id) {
-          finalGroupMembers.push(backupProfileRes.data._id || backupProfileRes.data.id);
-        }
+      if (finalGroupMembers.length === 0 && currentUserId) {
+        finalGroupMembers.push(currentUserId);
       }
 
-      if (finalGroupMembers.length === 0) {
-        alert("🔒 Profile authentication synchronization retry in progress. Please close and re-open modal.");
-        setLoading(false);
-        return;
-      }
-
-      // 1. Post project card configuration
+      // 1. Post project card
       await axios.post('https://peppy-we0g.onrender.com/api/projects', {
         name: newProjectName.trim(),
         teamCategory: targetedTeamCategory
       }, { headers });
 
-      // 2. Post WhatsApp workspace communications channel deck
+      // 2. Post WhatsApp workspace communications log channel automatically
       await axios.post('https://peppy-we0g.onrender.com/api/chats/groups', {
         name: `${newProjectName.trim()} Sync Group`,
         description: `Official communications broadcast deck for ${newProjectName.trim()} sprint roadmap.`,
@@ -301,7 +320,11 @@ function Dashboard() {
     setTasks(prevTasks => prevTasks.map(t => t._id === taskId ? { ...t, status: nextStatus } : t));
     try {
       const token = localStorage.getItem('peppy_token');
-      await axios.put(`https://peppy-we0g.onrender.com/api/tasks/${taskId}`, { status: nextStatus }, { headers: { Authorization: `Bearer ${token}` } });
+      const headers = { 
+        'Authorization': `Bearer ${token}`,
+        'x-auth-token': token 
+      };
+      await axios.put(`https://peppy-we0g.onrender.com/api/tasks/${taskId}`, { status: nextStatus }, { headers });
       fetchDashboardTasks();
     } catch (err) { console.error(err); fetchDashboardTasks(); }
   };
@@ -391,6 +414,7 @@ function Dashboard() {
                 </div>
               )}
 
+              {/* 🚀 ASANA ROLE GATE */}
               {(user?.role === 'Admin' || user?.role === 'Manager') && (
                 <button 
                   onClick={() => setShowProjectModal(true)} 
@@ -533,7 +557,7 @@ function Dashboard() {
         onRefresh={fetchDashboardTasks} 
       />
 
-      {/* Initialize Card Input Modal */}
+      {/* Initialize Task Input Modal Popouts Sheet */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white dark:bg-[#1e1f21] w-full max-w-md p-6 rounded-2xl border border-slate-200 dark:border-[#333538] shadow-2xl text-left">
