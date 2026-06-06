@@ -48,7 +48,8 @@ const TaskSchema = new mongoose.Schema({
     enum: ['Daily task', 'Weekly task', 'Monthly task', 'Quarterly task', 'One-time task'],
     default: 'One-time task'
   },
-  // ✅ ADDED: Dynamic documents catalog layer for Multer file uploads
+  
+  // 📁 MULTI-FORMAT ASSETS ATTACHMENTS REPOSITORY
   attachments: [{
     fileName: { 
       type: String, 
@@ -58,11 +59,33 @@ const TaskSchema = new mongoose.Schema({
       type: String, 
       required: true 
     },
+    mimeType: {
+      type: String,
+      default: 'application/octet-stream' // Unlocks explicit identifier for generic/all file types
+    },
     uploadedAt: { 
       type: Date, 
       default: Date.now 
     }
   }],
+
+  // 🔗 ✅ ADDED: LIVE HYPERLINK REFERENCE EMBED TREE
+  links: [{
+    title: {
+      type: String,
+      default: 'Workspace Resource Link'
+    },
+    url: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+
   subtasks: [{
     title: { type: String, required: true },
     isCompleted: { type: Boolean, default: false },
