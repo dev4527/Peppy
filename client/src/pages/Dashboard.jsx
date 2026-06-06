@@ -89,7 +89,7 @@ function Dashboard() {
       let projectsUrl = 'https://peppy-we0g.onrender.com/api/projects';
 
       // 🏢 MANAGER RULES: Strict departmental isolation mapping.
-      // 👑 ADMIN BYPASS: If role is Admin, it skips this and fetches ALL global records.
+      // 👑 ADMIN BYPASS: If role is Admin, it skips this and fetches ALL global records perfectly.
       if (user?.role === 'Manager' && user?.team) {
         membersUrl = `https://peppy-we0g.onrender.com/api/auth/users/team/${encodeURIComponent(user.team)}`;
       } else if (user?.role !== 'Admin' && currentProject?.teamCategory) {
@@ -239,10 +239,17 @@ function Dashboard() {
       const token = localStorage.getItem('peppy_token');
       const headers = { Authorization: `Bearer ${token}` };
       
-      // ✅ FIXED fallback alignment logic for Admins and Managers to protect against database field breaks
+      // Fixed dynamic fallback team configuration mapping
       const targetedTeamCategory = user?.role === 'Admin' ? 'Technical Team' : (user?.team || 'Technical Team');
+      const currentUserId = user?.id || user?._id;
 
-      // 1. Post project card
+      // 🧠 SAFEGUARD MASTER RULE: If array is empty, force self-inject current login user to protect backend constraints
+      let finalGroupMembers = [...selectedCrewMembers];
+      if (finalGroupMembers.length === 0 && currentUserId) {
+        finalGroupMembers.push(currentUserId);
+      }
+
+      // 1. Post project board
       await axios.post('https://peppy-we0g.onrender.com/api/projects', {
         name: newProjectName.trim(),
         teamCategory: targetedTeamCategory
@@ -252,8 +259,8 @@ function Dashboard() {
       await axios.post('https://peppy-we0g.onrender.com/api/chats/groups', {
         name: `${newProjectName.trim()} Sync Group`,
         description: `Official communications broadcast deck for ${newProjectName.trim()} sprint roadmap.`,
-        members: selectedCrewMembers,
-        teamScope: targetedTeamCategory // Matching database schema constraint parameters
+        members: finalGroupMembers, // ✅ Guaranteed never empty!
+        teamScope: targetedTeamCategory 
       }, { headers });
 
       alert(`🚀 Project "${newProjectName.trim()}" and its WhatsApp channel have been deployed together successfully!`);
@@ -265,7 +272,7 @@ function Dashboard() {
       fetchInitialGlobalData();
     } catch (err) {
       console.error('❌ Project onboarding suite failure:', err);
-      alert('Failed to execute continuous integration onboarding sequence.');
+      alert(err.response?.data?.message || 'Failed to execute continuous integration onboarding sequence.');
     } finally {
       setLoading(false);
     }
@@ -517,7 +524,7 @@ function Dashboard() {
         onRefresh={fetchDashboardTasks} 
       />
 
-      {/* Initialize Task Input Modal */}
+      {/* Initialize Card Input Modal Popouts Sheet */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white dark:bg-[#1e1f21] w-full max-w-md p-6 rounded-2xl border border-slate-200 dark:border-[#333538] shadow-2xl text-left">
