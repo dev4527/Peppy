@@ -57,26 +57,17 @@ function Dashboard() {
   // 🌓 THEME SYNCHRONIZATION RUNTIME EFFECT
   useEffect(() => {
     const root = window.document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    if (theme === 'dark') { root.classList.add('dark'); } else { root.classList.remove('dark'); }
     localStorage.setItem('peppy_theme', theme);
   }, [theme]);
 
-  const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
-  };
+  const toggleTheme = () => { setTheme(prev => (prev === 'dark' ? 'light' : 'dark')); };
 
   // 🔄 FETCH ALL WORKSPACE NOTIFICATIONS
   const fetchMyAlerts = async () => {
     try {
       const token = localStorage.getItem('peppy_token');
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
+      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
       const res = await axios.get('https://peppy-we0g.onrender.com/api/notifications', { headers });
       setNotifications(res.data || []);
     } catch (err) {
@@ -84,32 +75,20 @@ function Dashboard() {
     }
   };
 
-  // 👑 GLOBAL VISIBILITY ENGINE: Pulls absolutely everyone across all teams for un-restricted setups
+  // 👑 GLOBAL VISIBILITY ENGINE
   const fetchInitialGlobalData = async () => {
     const token = localStorage.getItem('peppy_token');
     if (!token) return;
 
     try {
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
-      
-      // ⭐ MODIFIED: Hits global users route directly so EVERY profile across teams populates without blocks
+      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
       const [membersRes, projectsRes] = await Promise.all([
         axios.get('https://peppy-we0g.onrender.com/api/auth/users', { headers }),
         axios.get('https://peppy-we0g.onrender.com/api/projects', { headers })
       ]);
       
       setTeamMembers(membersRes.data || []);
-
-      if (user?.role === 'Manager' && user?.team) {
-        const structuralFilteredProjects = (projectsRes.data || []).filter(p => p.teamCategory === user.team);
-        setProjects(structuralFilteredProjects);
-      } else {
-        setProjects(projectsRes.data || []);
-      }
-
+      setProjects(projectsRes.data || []);
     } catch (err) {
       console.error('Core catalog cluster synchronization fail:', err);
     }
@@ -121,10 +100,7 @@ function Dashboard() {
     if (!token) return;
 
     try {
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
+      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
       let freshDataDeck = [];
 
       if (showMyTasks) {
@@ -146,9 +122,7 @@ function Dashboard() {
           setSelectedTask(currentlyInspectedTask);
         } else {
           const singleTaskRes = await axios.get(`https://peppy-we0g.onrender.com/api/tasks/${selectedTask._id}`, { headers });
-          if (singleTaskRes.data) {
-            setSelectedTask(singleTaskRes.data);
-          }
+          if (singleTaskRes.data) { setSelectedTask(singleTaskRes.data); }
         }
       }
     } catch (err) {
@@ -156,16 +130,13 @@ function Dashboard() {
     }
   };
 
-  // 📡 NOTIFICATION REALTIME HOOKS & HANDSHAKES
+  // 📡 NOTIFICATION REALTIME HOOKS
   useEffect(() => {
     const currentUserId = user?.id || user?._id;
     if (currentUserId) {
       fetchMyAlerts();
       socket.emit('register_user', currentUserId);
-
-      socket.on('new_notification', (newAlert) => {
-        setNotifications(prev => [newAlert, ...prev]);
-      });
+      socket.on('new_notification', (newAlert) => { setNotifications(prev => [newAlert, ...prev]); });
     }
     return () => { socket.off('new_notification'); };
   }, [user]);
@@ -173,10 +144,7 @@ function Dashboard() {
   const handleMarkRead = async (id) => {
     try {
       const token = localStorage.getItem('peppy_token');
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
+      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
       await axios.put(`https://peppy-we0g.onrender.com/api/notifications/${id}/read`, {}, { headers });
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
     } catch (err) {
@@ -186,17 +154,11 @@ function Dashboard() {
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  useEffect(() => {
-    if (user) {
-      fetchInitialGlobalData();
-    }
-  }, [currentProject, user]);
+  useEffect(() => { if (user) { fetchInitialGlobalData(); } }, [currentProject, user]);
 
   useEffect(() => {
     fetchDashboardTasks();
-    if (currentProject?._id && !showMyTasks) {
-      socket.emit('join_project', currentProject._id);
-    }
+    if (currentProject?._id && !showMyTasks) { socket.emit('join_project', currentProject._id); }
   }, [currentProject, showMyTasks, viewMode]);
 
   useEffect(() => {
@@ -212,7 +174,7 @@ function Dashboard() {
     }
   }, [currentProject, projects, showModal]);
 
-  // 📝 DEPLOY TASK COMPONENT ACTION ENGINE WITH SAFETY HEADER HOOK
+  // 📝 DEPLOY TASK COMPONENT ACTION ENGINE
   const handleCreateTask = async (e) => {
     e.preventDefault();
     const finalProjectID = targetProject || currentProject?._id || (projects.length > 0 ? projects[0]._id : null);
@@ -225,10 +187,7 @@ function Dashboard() {
     setLoading(true);
     try {
       const token = localStorage.getItem('peppy_token');
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
+      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
 
       await axios.post('https://peppy-we0g.onrender.com/api/tasks', 
         { title, description, priority, project: finalProjectID, dueDate, assignedTo: assignedTo || null, recurrenceType },
@@ -241,12 +200,10 @@ function Dashboard() {
     } catch (err) { 
       console.error(err);
       alert(err.response?.data?.message || "Failed to deploy new task item card.");
-    } finally { 
-      setLoading(false); 
-    }
+    } finally { setLoading(false); }
   };
 
-  // 🚀 PROJECT + WHATSAPP GROUPS TWIN DISPATCH LAYER WITH OPTIONAL TOGGLE VERIFICATION
+  // 🚀 PROJECT + WHATSAPP GROUPS TWIN DISPATCH LAYER
   const handleOnboardProject = async (e) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
@@ -254,13 +211,10 @@ function Dashboard() {
     setLoading(true);
     try {
       const token = localStorage.getItem('peppy_token');
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
+      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
       
       const targetedTeamCategory = user?.role === 'Admin' ? 'Technical Team' : (user?.team || 'Technical Team');
-      const currentUserId = user?.id || user?._id;
+      const currentUserId = user?.id || user?._id || localStorage.getItem('peppy_userId');
 
       // 1. Post project card layout setup
       const projectResponse = await axios.post('https://peppy-we0g.onrender.com/api/projects', {
@@ -268,11 +222,12 @@ function Dashboard() {
         teamCategory: targetedTeamCategory
       }, { headers });
 
-      // ⭐ CONDITION DEPLOYMENT CHECKS: Group is built ONLY if toggle button 'createSyncGroup' status is checked/true
+      // ⭐ FIXED SYSTEM ENFORCEMENT: Group creator is ALWAYS added regardless of checkbox selections array sizing
       if (createSyncGroup) {
         let finalGroupMembers = [...selectedCrewMembers];
-        if (finalGroupMembers.length === 0 && currentUserId) {
-          finalGroupMembers.push(currentUserId);
+        
+        if (currentUserId && !finalGroupMembers.includes(String(currentUserId))) {
+          finalGroupMembers.push(String(currentUserId));
         }
 
         await axios.post('https://peppy-we0g.onrender.com/api/chats/groups', {
@@ -296,9 +251,7 @@ function Dashboard() {
     } catch (err) {
       console.error('❌ Project onboarding suite failure:', err);
       alert(err.response?.data?.message || 'Failed to execute continuous integration onboarding sequence.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   const handleCrewToggle = (id) => {
@@ -314,10 +267,7 @@ function Dashboard() {
     setTasks(prevTasks => prevTasks.map(t => t._id === taskId ? { ...t, status: nextStatus } : t));
     try {
       const token = localStorage.getItem('peppy_token');
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
+      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
       await axios.put(`https://peppy-we0g.onrender.com/api/tasks/${taskId}`, { status: nextStatus }, { headers });
       fetchDashboardTasks();
     } catch (err) { console.error(err); fetchDashboardTasks(); }
@@ -359,18 +309,11 @@ function Dashboard() {
             </div>
             
             <div className="flex gap-2.5 items-center relative">
-              <button 
-                onClick={toggleTheme}
-                className="bg-slate-100 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] hover:border-slate-300 dark:hover:border-[#45474a] p-2.5 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer text-base shadow-sm"
-                title="Toggle UI Theme"
-              >
+              <button onClick={toggleTheme} className="bg-slate-100 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] hover:border-slate-300 dark:hover:border-[#45474a] p-2.5 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer text-base shadow-sm" title="Toggle UI Theme">
                 {theme === 'dark' ? '☀️' : '🌙'}
               </button>
 
-              <button 
-                onClick={() => setIsNotificationOpen(!isNotificationOpen)}
-                className="bg-slate-100 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] hover:border-slate-300 dark:hover:border-[#45474a] p-2.5 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer relative shadow-sm"
-              >
+              <button onClick={() => setIsNotificationOpen(!isNotificationOpen)} className="bg-slate-100 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] hover:border-slate-300 dark:hover:border-[#45474a] p-2.5 rounded-xl text-slate-700 dark:text-slate-300 transition cursor-pointer relative shadow-sm">
                 <span className="text-base">🔔</span>
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white font-black rounded-full text-[9px] w-4 h-4 flex items-center justify-center animate-pulse">
@@ -391,11 +334,7 @@ function Dashboard() {
                       <div className="p-6 text-center text-slate-400 dark:text-slate-500 italic text-[11px]">No activity notifications yet.</div>
                     ) : (
                       notifications.map((alert) => (
-                        <div 
-                          key={alert._id} 
-                          onClick={() => { handleMarkRead(alert._id); }}
-                          className={`p-3.5 transition cursor-pointer flex flex-col gap-1 text-left ${alert.isRead ? 'bg-transparent opacity-40' : 'bg-slate-50 dark:bg-red-500/5 border-l-2 border-red-500'}`}
-                        >
+                        <div key={alert._id} onClick={() => { handleMarkRead(alert._id); }} className={`p-3.5 transition cursor-pointer flex flex-col gap-1 text-left ${alert.isRead ? 'bg-transparent opacity-40' : 'bg-slate-50 dark:bg-red-500/5 border-l-2 border-red-500'}`}>
                           <div className="flex justify-between items-center">
                             <span className="font-bold text-slate-900 dark:text-white text-[11px]">{alert.title}</span>
                             <span className="text-[8px] text-slate-400 dark:text-slate-500 font-medium">{new Date(alert.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -409,18 +348,12 @@ function Dashboard() {
               )}
 
               {(user?.role === 'Admin' || user?.role === 'Manager') && (
-                <button 
-                  onClick={() => setShowProjectModal(true)} 
-                  className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-extrabold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl cursor-pointer shadow-md transition-all active:scale-[0.98]"
-                >
+                <button onClick={() => setShowProjectModal(true)} className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-extrabold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl cursor-pointer shadow-md transition-all active:scale-[0.98]">
                   🚀 Onboard Project
                 </button>
               )}
 
-              <button 
-                onClick={() => setShowModal(true)} 
-                className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl cursor-pointer shadow-lg transition-all"
-              >
+              <button onClick={() => setShowModal(true)} className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl cursor-pointer shadow-lg transition-all">
                 + Add Task
               </button>
               <button onClick={logout} className="bg-slate-100 dark:bg-[#2a2b2d] hover:bg-slate-200 dark:hover:bg-[#36373a] text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-[#3f4144] font-bold text-xs uppercase px-4 py-2.5 rounded-xl cursor-pointer">Exit Space</button>
@@ -434,19 +367,14 @@ function Dashboard() {
           ) : viewMode === 'chat_room' ? (
             <div className="p-8"><ChatView theme={theme} /></div>
           ) : (
-            <div className="p-8">
-              {/* Other table / board code links render blocks */}
-            </div>
+            <div className="p-8"></div>
           )}
         </div>
       </div>
 
-      <TaskDrawer 
-        task={selectedTask} 
-        onClose={() => setSelectedTask(null)} 
-        onRefresh={fetchDashboardTasks} 
-      />
+      <TaskDrawer task={selectedTask} onClose={() => setSelectedTask(null)} onRefresh={fetchDashboardTasks} />
 
+      {/* CREATE TASK CARD INITIALIZER MODAL POPUP */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white dark:bg-[#1e1f21] w-full max-w-md p-6 rounded-2xl border border-slate-200 dark:border-[#333538] shadow-2xl text-left">
@@ -472,13 +400,30 @@ function Dashboard() {
                 <label className="block text-slate-500 dark:text-[#a2a0a2] font-semibold mb-1.5">Description Context</label>
                 <textarea rows="2" className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-red-500 resize-none" placeholder="Specify descriptive guidelines..." value={description} onChange={(e) => setDescription(e.target.value)} />
               </div>
+              
+              {/* 👥 ASSIGNEE SELECTOR DROPDOWN MATRIX WITH INSTANT SELF-ASSIGN OPTION */}
               <div>
                 <label className="block text-slate-500 dark:text-[#a2a0a2] font-semibold mb-1.5">Assign Task To Employee</label>
-                <select className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none" value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)}>
+                <select 
+                  className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none cursor-pointer text-xs" 
+                  value={assignedTo} 
+                  onChange={(e) => setAssignedTo(e.target.value)}
+                >
                   <option value="">-- Select Team Employee --</option>
-                  {teamMembers.map((member) => <option key={member._id} value={member._id}>{member.name} ({member.role})</option>)}
+                  
+                  {/* ⭐ STABLE SHORTCUT FALLBACK VECTOR */}
+                  <option value={user?.id || user?._id || localStorage.getItem('peppy_userId') || ""} className="text-emerald-500 font-bold bg-emerald-500/10">
+                    🙋‍♂️ Assign to Me ({user?.name || 'Myself'})
+                  </option>
+                  
+                  <option disabled className="text-slate-400">────────────────────</option>
+                  
+                  {teamMembers.map((member) => (
+                    <option key={member._id} value={member._id}>{member.name} ({member.role} &bull; {member.team})</option>
+                  ))}
                 </select>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-slate-500 dark:text-[#a2a0a2] font-semibold mb-1.5">Priority Rank</label>
@@ -498,7 +443,7 @@ function Dashboard() {
         </div>
       )}
 
-      {/* 🚀 UPGRADED LAYER: OPTIONAL WHATSAPP CHANNEL INJECTION MATRIX */}
+      {/* 🚀 PROJECT ONBOARDING MODAL POPOUT */}
       {showProjectModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-[#1e1f21] border border-[#2d2e30] w-full max-w-md p-6 rounded-2xl shadow-2xl text-left">
@@ -512,17 +457,9 @@ function Dashboard() {
             <form onSubmit={handleOnboardProject} className="space-y-4 text-xs mt-4">
               <div>
                 <label className="block text-slate-400 font-bold uppercase tracking-wider mb-1.5">Project Name</label>
-                <input 
-                  type="text" 
-                  className="w-full bg-[#151617] border border-[#333538] rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-red-500 text-xs" 
-                  placeholder="e.g., Q3 Operational Roadmap" 
-                  value={newProjectName} 
-                  onChange={(e) => setNewProjectName(e.target.value)} 
-                  required 
-                />
+                <input type="text" className="w-full bg-[#151617] border border-[#333538] rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-red-500 text-xs" placeholder="e.g., Q3 Operational Roadmap" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} required />
               </div>
 
-              {/* 📱 AUTOMATED SYNC CHAT TOGGLE COMPONENT */}
               <div className="bg-[#151617]/50 border border-[#2d2e30] p-3 rounded-xl flex items-center justify-between">
                 <div>
                   <label className="block text-emerald-400 font-bold uppercase tracking-wider mb-0.5">📱 Sync Group Channel Title</label>
@@ -531,61 +468,31 @@ function Dashboard() {
                   </p>
                 </div>
                 <div className="flex items-center">
-                  <input 
-                    type="checkbox"
-                    id="sync-group-toggle"
-                    checked={createSyncGroup}
-                    onChange={(e) => setCreateSyncGroup(e.target.checked)}
-                    className="w-4 h-4 accent-emerald-500 cursor-pointer rounded"
-                  />
+                  <input type="checkbox" id="sync-group-toggle" checked={createSyncGroup} onChange={(e) => setCreateSyncGroup(e.target.checked)} className="w-4 h-4 accent-emerald-500 cursor-pointer rounded" />
                   <label htmlFor="sync-group-toggle" className="ml-2 text-[10px] font-bold text-slate-300 uppercase tracking-wide cursor-pointer">Sync Group</label>
                 </div>
               </div>
 
-              {/* 👥 CREW CORE CHECKBOX SELECTION LIST - UNLOCKED GLOBALLY ONLY IF TOGGLED */}
               {createSyncGroup && (
                 <div className="space-y-2 animate-fade-in">
                   <label className="block text-slate-400 font-bold uppercase tracking-wider mb-1">Select Crew Core Members for WhatsApp sync channel</label>
                   <div className="max-h-44 overflow-y-auto bg-[#151617] border border-[#333538] rounded-xl p-2.5 space-y-2 custom-scrollbar">
-                    {teamMembers.length === 0 ? (
-                      <p className="text-[10px] text-red-400 font-bold italic p-4 text-center">No team records found under this structural clearance level.</p>
-                    ) : (
-                      teamMembers.map(u => (
-                        <label key={u._id} className="flex items-center gap-3 px-3 py-2 hover:bg-[#252628] rounded-xl cursor-pointer text-slate-300 transition border border-transparent hover:border-[#333538]">
-                          <input 
-                            type="checkbox" 
-                            checked={selectedCrewMembers.includes(u._id)}
-                            onChange={() => handleCrewToggle(u._id)}
-                            className="accent-red-500 cursor-pointer h-4 w-4 rounded border-[#333338]"
-                          />
-                          <div className="flex flex-col min-w-0">
-                            <span className="font-bold text-xs text-white truncate">{u.name}</span>
-                            <span className="text-[9px] text-red-400 uppercase font-black tracking-wider mt-0.5">
-                              Designation: {u.role} &bull; Team: {u.team || 'Global'}
-                            </span>
-                          </div>
-                        </label>
-                      ))
-                    )}
+                    {teamMembers.map(u => (
+                      <label key={u._id} className="flex items-center gap-3 px-3 py-2 hover:bg-[#252628] rounded-xl cursor-pointer text-slate-300 transition border border-transparent hover:border-[#333538]">
+                        <input type="checkbox" checked={selectedCrewMembers.includes(u._id)} onChange={() => handleCrewToggle(u._id)} className="accent-red-500 cursor-pointer h-4 w-4 rounded border-[#333338]" />
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-xs text-white truncate">{u.name}</span>
+                          <span className="text-[9px] text-red-400 uppercase font-black tracking-wider mt-0.5">Designation: {u.role} &bull; Team: {u.team || 'Global'}</span>
+                        </div>
+                      </label>
+                    ))}
                   </div>
                 </div>
               )}
 
               <div className="flex gap-3 pt-2">
-                <button 
-                  type="submit" 
-                  disabled={loading} 
-                  className="flex-1 bg-red-500 hover:bg-red-600 text-white font-black uppercase tracking-wider py-2.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-lg shadow-red-500/10"
-                >
-                  {loading ? 'Deploying...' : 'Build Space 🚀'}
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => { setShowProjectModal(false); setCreateSyncGroup(false); }} 
-                  className="flex-1 bg-[#252628] hover:bg-[#2d2e30] text-slate-400 font-bold py-2.5 rounded-xl transition cursor-pointer"
-                >
-                  Cancel
-                </button>
+                <button type="submit" disabled={loading} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-black uppercase tracking-wider py-2.5 rounded-xl transition disabled:opacity-50 cursor-pointer shadow-lg shadow-red-500/10">{loading ? 'Deploying...' : 'Build Space 🚀'}</button>
+                <button type="button" onClick={() => { setShowProjectModal(false); setCreateSyncGroup(false); }} className="flex-1 bg-[#252628] hover:bg-[#2d2e30] text-slate-400 font-bold py-2.5 rounded-xl transition cursor-pointer">Cancel</button>
               </div>
             </form>
           </div>
