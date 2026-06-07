@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const Project = require('../models/Project');
 const User = require('../models/User');
+const ChatGroup = require('../models/ChatGroup'); // Secured mapping link
 const auth = require('../middleware/authMiddleware');
 
-// @route    POST api/projects
-// @desc     Initialize a brand new team project board branch tracking workspace
+// ==========================================
+// 🚀 1. INITIALIZE PROJECT WORKSPACE
+// ==========================================
 router.post('/', auth, async (req, res) => {
   const { name, description, teamCategory } = req.body;
   
@@ -14,7 +16,6 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ message: 'Project board title is required.' });
     }
 
-    // ⚡ EXTRACTOR PIPELINE SAFE GUARD: Resolving token user reference layers cleanly
     let finalCreatorID = null;
     if (req.user) {
       if (req.user.user && req.user.user.id) {
@@ -26,9 +27,8 @@ router.post('/', auth, async (req, res) => {
       }
     }
 
-    // Checking profile verification fallback logs
     if (!finalCreatorID) {
-      return res.status(401).json({ message: 'User reference missing inside authentication header wrapper.' });
+      return res.status(401).json({ message: 'User reference missing inside authentication wrapper.' });
     }
 
     const currentUser = await User.findById(finalCreatorID);
@@ -36,7 +36,6 @@ router.post('/', auth, async (req, res) => {
       return res.status(404).json({ message: 'User reference missing inside directory dataset.' });
     }
 
-    // Force value configurations mapping standard
     let assignedTeamGroup = currentUser.role === 'Admin' ? (teamCategory || 'Technical Team') : currentUser.team;
 
     const newProject = new Project({
@@ -47,16 +46,18 @@ router.post('/', auth, async (req, res) => {
     });
 
     const project = await newProject.save();
-    console.log(`🚀 Project board [${project.name}] successfully synchronized into database column stack: ${project.teamCategory}`);
+    console.log(`🚀 Project board [${project.name}] successfully synchronized into database.`);
     return res.json(project);
 
   } catch (error) {
     console.error('Critical Project Creation Engine Drop:', error);
-    return res.status(500).json({ message: 'Server deployment error inside project route execution: ' + error.message });
+    return res.status(500).json({ message: 'Server deployment error: ' + error.message });
   }
 });
 
-// @route    GET api/projects
+// ==========================================
+// 🧭 2. FETCH FILTERED PROJECTS HIERARCHY
+// ==========================================
 router.get('/', auth, async (req, res) => {
   try {
     let targetUserId = null;
@@ -71,12 +72,41 @@ router.get('/', auth, async (req, res) => {
     }
 
     const currentUser = await User.findById(targetUserId);
-    
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User profile record reference missing.' });
+    }
+
     let projects;
-    if (currentUser && currentUser.role === 'Manager' && currentUser.team) {
-      projects = await Project.find({ teamCategory: currentUser.team }).sort({ createdAt: -1 });
-    } else {
+
+    // 👑 ADMIN ACCESS: Gets absolutely every project board inside the entire company
+    if (currentUser.role === 'Admin') {
       projects = await Project.find().sort({ createdAt: -1 });
+    } 
+    
+    // 🏢 MANAGER ACCESS: Filters explicitly by their own department team folder name
+    else if (currentUser.role === 'Manager') {
+      if (!currentUser.team) return res.json([]);
+      projects = await Project.find({ 
+        teamCategory: { $regex: new RegExp(`^${currentUser.team.trim()}$`, 'i') } 
+      }).sort({ createdAt: -1 });
+    } 
+    
+    // 👤 EMPLOYEE ACCESS (STRICT ISOLATION): Show project ONLY if they are active group members
+    else {
+      const matchingGroups = await ChatGroup.find({ members: targetUserId }).select('project');
+      
+      // Filter mapping fields cleanly to ignore any null discrepancies
+      const approvedProjectIds = matchingGroups
+        .map(g => g.project)
+        .filter(p => p !== null && p !== undefined);
+
+      // Strict enforcement: Must be explicitly whitelisted inside the allowed projects array
+      projects = await Project.find({
+        $and: [
+          { teamCategory: { $regex: new RegExp(`^${currentUser.team?.trim() || 'Technical Team'}$`, 'i') } },
+          { _id: { $in: approvedProjectIds } }
+        ]
+      }).sort({ createdAt: -1 });
     }
 
     return res.json(projects || []);
