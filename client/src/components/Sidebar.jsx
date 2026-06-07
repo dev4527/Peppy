@@ -18,6 +18,7 @@ function Sidebar({ currentProject, setCurrentProject, showMyTasks, setShowMyTask
         'x-auth-token': token 
       };
       
+      // Both routes are now strictly intercepted by server security patches
       const [projRes, teamRes] = await Promise.all([
         axios.get('https://peppy-we0g.onrender.com/api/projects', { headers }),
         axios.get('https://peppy-we0g.onrender.com/api/teams', { headers })
@@ -92,8 +93,11 @@ function Sidebar({ currentProject, setCurrentProject, showMyTasks, setShowMyTask
             return String(p.teamCategory).toLowerCase().trim() === String(team.name).toLowerCase().trim();
           });
 
-          // Hierarchy View Gate: Managers only see their own track branch layout
-          if (user?.role === 'Manager' && user?.team !== team.name) return null;
+          // ⭐ STRICTOR ROLES HYPER-GATEWAY OVERRIDE: 
+          // If the logged-in user is a Manager OR an Employee, completely hide other department team headers from their dashboard sidebar view.
+          if ((user?.role === 'Manager' || user?.role === 'Employee') && String(user?.team).toLowerCase().trim() !== String(team.name).toLowerCase().trim()) {
+            return null;
+          }
 
           return (
             <div key={team._id} className="border-t border-[#2d2e30] pt-2.5 mt-2 group/team">
