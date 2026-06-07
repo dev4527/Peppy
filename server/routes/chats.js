@@ -99,16 +99,34 @@ router.post('/groups', auth, async (req, res) => {
       return res.status(400).json({ message: 'Group Name parameter is missing.' });
     }
 
-    const currentUser = await User.findById(req.user.id);
-    if (!currentUser) return res.status(404).json({ message: 'User reference missing.' });
+    // ⚡ EXTRACTOR PIPELINE SAFEGUARD: Resolving token structure payload layers cleanly
+    let targetUserId = null;
+    if (req.user) {
+      if (req.user.user && req.user.user.id) {
+        targetUserId = req.user.user.id;
+      } else if (typeof req.user === 'object') {
+        targetUserId = req.user.id || req.user._id;
+      } else {
+        targetUserId = req.user;
+      }
+    }
+
+    if (!targetUserId) {
+      return res.status(401).json({ message: 'User authorization identity structure context drop.' });
+    }
+
+    const currentUser = await User.findById(targetUserId);
+    if (!currentUser) {
+      return res.status(404).json({ message: 'User profile record reference missing inside dataset directory.' });
+    }
 
     // Hierarchy Safeguard: Admin specifies team Scope, Manager/Employee automatically locks to their team folder
-    const groupTeamScope = currentUser.role === 'Admin' ? (teamScope || 'Global') : currentUser.team;
+    const groupTeamScope = currentUser.role === 'Admin' ? (teamScope || 'Technical Team') : currentUser.team;
 
-    // Build unique members array list seamlessly
+    // Build unique members array list seamlessly without any undefined parameters injection
     let finalMembersList = members || [];
-    if (!finalMembersList.includes(req.user.id)) {
-      finalMembersList.push(req.user.id);
+    if (!finalMembersList.includes(targetUserId)) {
+      finalMembersList.push(targetUserId);
     }
 
     const newGroup = new ChatGroup({
@@ -116,16 +134,16 @@ router.post('/groups', auth, async (req, res) => {
       description: description ? description.trim() : '',
       teamScope: groupTeamScope,
       members: finalMembersList,
-      createdBy: req.user.id
+      createdBy: targetUserId
     });
 
     await newGroup.save();
-    console.log(`💬 New corporate WhatsApp-Group generated: [${name.trim()}]`);
+    console.log(`💬 New corporate WhatsApp-Group generated successfully: [${name.trim()}]`);
 
     return res.status(201).json(newGroup);
   } catch (error) {
     console.error('❌ Group generation transaction loop drop:', error);
-    return res.status(500).json({ message: 'Server crash during team group creation.' });
+    return res.status(500).json({ message: 'Server crash during team group creation: ' + error.message });
   }
 });
 
@@ -133,8 +151,24 @@ router.post('/groups', auth, async (req, res) => {
 // @desc    Fetch groups dynamically based on role visibility criteria 📱
 router.get('/groups', auth, async (req, res) => {
   try {
-    const currentUser = await User.findById(req.user.id);
-    if (!currentUser) return res.status(404).json({ message: 'Authentication mismatch.' });
+    // ⚡ EXTRACTION SAFEGUARD ALSO APPLIED HERE FOR QUERY PIPELINES
+    let targetUserId = null;
+    if (req.user) {
+      if (req.user.user && req.user.user.id) {
+        targetUserId = req.user.user.id;
+      } else if (typeof req.user === 'object') {
+        targetUserId = req.user.id || req.user._id;
+      } else {
+        targetUserId = req.user;
+      }
+    }
+
+    if (!targetUserId) {
+      return res.status(401).json({ message: 'User authorization extraction error during history stream access.' });
+    }
+
+    const currentUser = await User.findById(targetUserId);
+    if (!currentUser) return res.status(404).json({ message: 'Authentication mismatch dataset record failure.' });
 
     let visibleGroups;
 
@@ -147,7 +181,7 @@ router.get('/groups', auth, async (req, res) => {
       visibleGroups = await ChatGroup.find({
         $or: [
           { teamScope: currentUser.team },
-          { members: req.user.id }
+          { members: targetUserId }
         ]
       }).populate('members', 'name email role team').sort({ updatedAt: -1 });
     }
@@ -165,13 +199,24 @@ router.get('/group/history/:groupId', auth, async (req, res) => {
   try {
     const { groupId } = req.params;
 
+    let targetUserId = null;
+    if (req.user) {
+      if (req.user.user && req.user.user.id) {
+        targetUserId = req.user.user.id;
+      } else if (typeof req.user === 'object') {
+        targetUserId = req.user.id || req.user._id;
+      } else {
+        targetUserId = req.user;
+      }
+    }
+
     // Verify if user is part of the requested group bounds
-    const currentUser = await User.findById(req.user.id);
+    const currentUser = await User.findById(targetUserId);
     const group = await ChatGroup.findById(groupId);
 
     if (!group) return res.status(404).json({ message: 'Group chat channel target not found.' });
 
-    if (currentUser.role !== 'Admin' && group.teamScope !== currentUser.team && !group.members.includes(req.user.id)) {
+    if (currentUser.role !== 'Admin' && group.teamScope !== currentUser.team && !group.members.includes(targetUserId)) {
       return res.status(403).json({ message: 'Access denied. You do not belong to this group cluster.' });
     }
 
