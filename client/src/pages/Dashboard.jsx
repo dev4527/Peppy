@@ -75,7 +75,7 @@ function Dashboard() {
     }
   };
 
-  // 👑 GLOBAL VISIBILITY ENGINE
+  // 👑 GLOBAL VISIBILITY ENGINE: Pulls filtered dashboard arrays matching backend security layers
   const fetchInitialGlobalData = async () => {
     const token = localStorage.getItem('peppy_token');
     if (!token) return;
@@ -88,7 +88,10 @@ function Dashboard() {
       ]);
       
       setTeamMembers(membersRes.data || []);
+      
+      // ⭐ DIRECT STRUCTURAL BIND: Avoid loose client side filters to prevent missing rows
       setProjects(projectsRes.data || []);
+
     } catch (err) {
       console.error('Core catalog cluster synchronization fail:', err);
     }
@@ -154,7 +157,7 @@ function Dashboard() {
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  useEffect(() => { if (user) { fetchInitialGlobalData(); } }, [currentProject, user]);
+  useEffect(() => { if (user) { fetchInitialGlobalData(); } }, [currentProject, user, viewMode]);
 
   useEffect(() => {
     fetchDashboardTasks();
@@ -222,7 +225,7 @@ function Dashboard() {
         teamCategory: targetedTeamCategory
       }, { headers });
 
-      // ⭐ FIXED SYSTEM ENFORCEMENT: Group creator is ALWAYS added regardless of checkbox selections array sizing
+      // Condition deployment checks
       if (createSyncGroup) {
         let finalGroupMembers = [...selectedCrewMembers];
         
@@ -287,12 +290,14 @@ function Dashboard() {
   return (
     <div className="flex h-screen w-screen bg-[#f3f4f6] dark:bg-[#151617] text-slate-900 dark:text-white overflow-hidden relative font-sans antialiased select-none transition-colors duration-300">
       
+      {/* ⭐ DYNAMIC PROPS INJECTED: Passing core project array state directly into sidebar lane */}
       <Sidebar 
         currentProject={currentProject} setCurrentProject={setCurrentProject} 
         showMyTasks={showMyTasks} setShowMyTasks={setShowMyTasks} 
         viewMode={viewMode} setViewMode={setViewMode}
         theme={theme}
         setShowProjectModal={setShowProjectModal}
+        projects={projects}
       />
       
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white dark:bg-[#1e1f21] transition-colors duration-300">
@@ -401,7 +406,7 @@ function Dashboard() {
                 <textarea rows="2" className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none focus:border-red-500 resize-none" placeholder="Specify descriptive guidelines..." value={description} onChange={(e) => setDescription(e.target.value)} />
               </div>
               
-              {/* 👥 ASSIGNEE SELECTOR DROPDOWN MATRIX WITH INSTANT SELF-ASSIGN OPTION */}
+              {/* 👥 FIXED ASSIGNEE CONTROL CHIP */}
               <div>
                 <label className="block text-slate-500 dark:text-[#a2a0a2] font-semibold mb-1.5">Assign Task To Employee</label>
                 <select 
@@ -412,7 +417,7 @@ function Dashboard() {
                   <option value="">-- Select Team Employee --</option>
                   
                   {/* ⭐ STABLE SHORTCUT FALLBACK VECTOR */}
-                  <option value={user?.id || user?._id || localStorage.getItem('peppy_userId') || ""} className="text-emerald-500 font-bold bg-emerald-500/10">
+                  <option value={user?.id || user?._id || ""} className="text-emerald-500 font-bold bg-emerald-500/10">
                     🙋‍♂️ Assign to Me ({user?.name || 'Myself'})
                   </option>
                   
