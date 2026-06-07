@@ -4,6 +4,7 @@ const Project = require('../models/Project');
 const User = require('../models/User');
 const ChatGroup = require('../models/ChatGroup');
 const auth = require('../middleware/authMiddleware');
+const mongoose = require('mongoose');
 
 // ==========================================
 // 🚀 1. INITIALIZE PROJECT WORKSPACE
@@ -74,15 +75,26 @@ router.get('/', auth, async (req, res) => {
       return res.json(managerProjects || []);
     } 
     
-    // 👤 C. EMPLOYEE ACCESS LAYER (RESTORED & SAFELY FILTERED):
-    // Pehle we look up all groups where the employee is an explicit member
-    const matchingGroups = await ChatGroup.find({ members: targetUserId }).select('project');
-    const associatedProjectIds = matchingGroups.map(g => String(g.project)).filter(p => p !== 'null' && p !== 'undefined');
+    // 👤 C. EMPLOYEE ACCESS LAYER (HYBRID SAFE FALLBACK):
+    // Amit ko uske team category (Technical Team) ke saare projects milenge, 
+    // PLUS agar use kisi explicit project sync group ka member banaya hai toh wo bhi fetch hoga.
+    const userObjId = mongoose.Types.ObjectId.isValid(targetUserId) ? new mongoose.Types.ObjectId(targetUserId) : targetUserId;
+    
+    // Find all groups where employee is listed as a member (Using dynamic casting or raw matching)
+    const matchingGroups = await ChatGroup.find({
+      $or: [
+        { members: targetUserId },
+        { members: userObjId }
+      ]
+    }).select('project');
 
-    // Fetch projects that belong to the employee's team AND where they are added by the Manager
+    const associatedProjectIds = matchingGroups
+      .map(g => g.project ? String(g.project) : null)
+      .filter(p => p && p !== 'null' && p !== 'undefined');
+
     const employeeProjects = await Project.find({
-      $and: [
-        { teamCategory: { $regex: new RegExp(`^${currentUser.team?.trim() || 'Technical Team'}$`, 'i') } },
+      $or: [
+        { teamCategory: { $regex: new RegExp(`^${(currentUser.team || 'Technical Team').trim()}$`, 'i') } },
         { _id: { $in: associatedProjectIds } }
       ]
     }).sort({ createdAt: -1 });
