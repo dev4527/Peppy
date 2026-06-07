@@ -49,7 +49,7 @@ const TaskSchema = new mongoose.Schema({
     default: 'One-time task'
   },
   
-  // 📁 MULTI-FORMAT ASSETS ATTACHMENTS REPOSITORY
+  // 📁 MULTI-FORMAT ASSETS ATTACHMENTS REPOSITORY (Supports PPT, PPTX, PDF, Images)
   attachments: [{
     fileName: { 
       type: String, 
@@ -61,7 +61,7 @@ const TaskSchema = new mongoose.Schema({
     },
     mimeType: {
       type: String,
-      default: 'application/octet-stream' // Unlocks explicit identifier for generic/all file types
+      default: 'application/octet-stream' // Unlocks explicit identifier for generic/all file types like presentations
     },
     uploadedAt: { 
       type: Date, 
@@ -69,7 +69,7 @@ const TaskSchema = new mongoose.Schema({
     }
   }],
 
-  // 🔗 ✅ ADDED: LIVE HYPERLINK REFERENCE EMBED TREE
+  // 🔗 LIVE HYPERLINK REFERENCE EMBED TREE (For instant copy-paste clickable links)
   links: [{
     title: {
       type: String,

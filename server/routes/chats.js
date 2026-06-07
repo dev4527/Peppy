@@ -1,15 +1,11 @@
 const express = require('express');
 const router = express.Router();
 
-// ✅ FIXED CRITICAL MODEL PATH: Mapping directly to your actual schema file 'Chat.js'
+// Fully matched to your unique schema file setups
 const Message = require('../models/Chat'); 
 const ChatGroup = require('../models/ChatGroup');
 const User = require('../models/User');
 const auth = require('../middleware/authMiddleware');
-
-// ==========================================
-// Baki saara code bilkul same rahega niche tak...
-// ==========================================
 
 // ==========================================
 // 👤 EXISTING 1-ON-1 PRIVATE CHATS SECTION
@@ -133,7 +129,9 @@ const handleGroupCreationStream = async (req, res) => {
       finalMembersList = typeof members === 'string' ? JSON.parse(members) : [...members];
     }
     
-    if (!finalMembersList.includes(targetUserId)) {
+    // Safety check: Creator ID is cleanly converted to string for matching check
+    const stringifiedUserId = String(targetUserId);
+    if (!finalMembersList.map(id => String(id)).includes(stringifiedUserId)) {
       finalMembersList.push(targetUserId);
     }
 
@@ -147,9 +145,11 @@ const handleGroupCreationStream = async (req, res) => {
     });
 
     await newGroup.save();
+    
+    const fullyPopulatedGroup = await ChatGroup.findById(newGroup._id).populate('members', 'name email role team');
     console.log(`💬 New corporate WhatsApp-Group generated successfully: [${name.trim()}]`);
 
-    return res.status(201).json(newGroup);
+    return res.status(201).json(fullyPopulatedGroup);
   } catch (error) {
     console.error('❌ Group generation transaction loop drop:', error);
     return res.status(500).json({ message: 'Server crash during team group creation: ' + error.message });
@@ -183,15 +183,19 @@ const handleFetchGroupsStream = async (req, res) => {
 
     let visibleGroups;
 
-    // Admin pulls global array blocks, managers filter explicitly
+    // 👑 1. ADMIN ACCESS: Complete global transparent visibility
     if (currentUser.role === 'Admin') {
       visibleGroups = await ChatGroup.find().populate('members', 'name email role team').sort({ updatedAt: -1 });
-    } else {
+    } 
+    // 🏢 2. MANAGER ACCESS: Can view all groups linked to their team category
+    else if (currentUser.role === 'Manager') {
+      visibleGroups = await ChatGroup.find({ teamScope: currentUser.team }).populate('members', 'name email role team').sort({ updatedAt: -1 });
+    } 
+    // 👤 3. EMPLOYEE ACCESS (STRICT BARRIER): Total lock down!
+    // Employee can ONLY pull channels where they are added explicitly to the members array
+    else {
       visibleGroups = await ChatGroup.find({
-        $or: [
-          { teamScope: currentUser.team },
-          { members: targetUserId }
-        ]
+        members: targetUserId
       }).populate('members', 'name email role team').sort({ updatedAt: -1 });
     }
 
@@ -222,13 +226,13 @@ router.get('/group/history/:groupId', auth, async (req, res) => {
       }
     }
 
-    // Verify if user is part of the requested group bounds
     const currentUser = await User.findById(targetUserId);
     const group = await ChatGroup.findById(groupId);
 
     if (!group) return res.status(404).json({ message: 'Group chat channel target not found.' });
 
-    if (currentUser.role !== 'Admin' && group.teamScope !== currentUser.team && !group.members.includes(targetUserId)) {
+    // Hierarchy block check using normalized mapping boundaries
+    if (currentUser.role !== 'Admin' && group.teamScope !== currentUser.team && !group.members.map(id => String(id)).includes(String(targetUserId))) {
       return res.status(403).json({ message: 'Access denied. You do not belong to this group cluster.' });
     }
 

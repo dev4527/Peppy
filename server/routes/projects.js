@@ -57,7 +57,7 @@ router.get('/', auth, async (req, res) => {
       return res.status(404).json({ message: 'User profile record reference missing.' });
     }
 
-    // 👑 A. ADMIN / CEO LOOKUP: Full transparency (Isse sab kuch dikhega hamesha)
+    // 👑 A. ADMIN / CEO LOOKUP: Full transparency
     if (currentUser.role === 'Admin') {
       const allProjects = await Project.find().sort({ createdAt: -1 });
       return res.json(allProjects || []);
@@ -75,12 +75,12 @@ router.get('/', auth, async (req, res) => {
       return res.json(managerProjects || []);
     } 
     
-    // 👤 C. EMPLOYEE ACCESS LAYER (STRICT WHITELIST SELECTION):
-    // ⭐ FIX: Team fallback check yahan se poori tarah uda diya hai.
-    // Ab Employee ko project tabhi dikhega jab Manager use explicitly select karke group ka part banayega!
+    // 👤 C. EMPLOYEE ACCESS LAYER (HYBRID SAFE FALLBACK):
+    // Amit ko uske team category (Technical Team) ke saare projects milenge, 
+    // PLUS agar use kisi explicit project sync group ka member banaya hai toh wo bhi fetch hoga.
     const userObjId = mongoose.Types.ObjectId.isValid(targetUserId) ? new mongoose.Types.ObjectId(targetUserId) : targetUserId;
     
-    // Find all group slots where employee ID is present
+    // Find all groups where employee is listed as a member (Using dynamic casting or raw matching)
     const matchingGroups = await ChatGroup.find({
       $or: [
         { members: targetUserId },
@@ -92,9 +92,11 @@ router.get('/', auth, async (req, res) => {
       .map(g => g.project ? String(g.project) : null)
       .filter(p => p && p !== 'null' && p !== 'undefined');
 
-    // Strict validation check: project must be inside the allowed associatedProjectIds array
     const employeeProjects = await Project.find({
-      _id: { $in: associatedProjectIds }
+      $or: [
+        { teamCategory: { $regex: new RegExp(`^${(currentUser.team || 'Technical Team').trim()}$`, 'i') } },
+        { _id: { $in: associatedProjectIds } }
+      ]
     }).sort({ createdAt: -1 });
 
     return res.json(employeeProjects || []);
