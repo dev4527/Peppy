@@ -8,12 +8,13 @@ const socket = io('https://peppy-we0g.onrender.com');
 function ChatView() {
   const { user } = useContext(AuthContext);
   const [users, setUsers] = useState([]);
-  const [activeTab, setActiveTab] = useState('private'); 
+  const [activeTab, setActiveTab] = useState('private'); // 📱 'private' or 'groups'
   const [chatGroups, setChatGroups] = useState([]);
-  const [activeChatTarget, setActiveChatTarget] = useState(null); 
+  const [activeChatTarget, setActiveChatTarget] = useState(null); // 🎯 Holds active User or ChatGroup object
   const [messages, setMessages] = useState([]);
   const [typedMessage, setTypedMessage] = useState('');
   
+  // ➕ CREATE GROUP STATE
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
@@ -21,6 +22,7 @@ function ChatView() {
 
   const messagesEndRef = useRef(null);
 
+  // 🔗 FEATURE: AUTOMATED TEXT HYPERLINK CONVERTER ENGINE
   const renderMessageWithLinks = (text) => {
     if (!text) return "";
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -28,7 +30,13 @@ function ChatView() {
     return parts.map((part, index) => {
       if (part.match(urlRegex)) {
         return (
-          <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="text-cyan-300 hover:text-cyan-200 underline font-semibold break-all inline-block">
+          <a 
+            key={index} 
+            href={part} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            className="text-cyan-300 hover:text-cyan-200 underline font-semibold break-all inline-block"
+          >
             {part}
           </a>
         );
@@ -37,7 +45,7 @@ function ChatView() {
     });
   };
 
-  // 📂 GLOBAL DIRECTORY ACQUISITION: Pulls absolutely everyone for universal 1-on-1 access
+  // 📂 FETCH ALL EMPLOYEES GLOBALLY & ALL SYNCED CHAT GROUPS
   const fetchInitialData = async () => {
     try {
       const token = localStorage.getItem('peppy_token');
@@ -48,7 +56,7 @@ function ChatView() {
         'x-auth-token': token 
       };
 
-      // ⭐ REMOVED TEAM BOUNDARIES: Calling base user route so EVERY single employee is visible globally
+      // ⭐ UNRESTRICTED CORE SYSTEM OVERRIDE: Base routes pull absolutely EVERYONE for global mapping
       const [usersRes, groupsRes] = await Promise.all([
         axios.get('https://peppy-we0g.onrender.com/api/auth/users', { headers }),
         axios.get('https://peppy-we0g.onrender.com/api/chats/groups', { headers })
@@ -60,6 +68,7 @@ function ChatView() {
       setUsers(filteredList);
       setChatGroups(groupsRes.data || []);
 
+      // Anchor sockets for real-time channels dynamically
       if (groupsRes.data && groupsRes.data.length > 0) {
         const groupIds = groupsRes.data.map(g => g._id);
         socket.emit('join_chat_groups', groupIds);
@@ -77,6 +86,7 @@ function ChatView() {
     }
   }, [user]);
 
+  // 🧠 RE-QUERY CONVERSATION TIMELINE ON CHAT TARGET SWITCH
   useEffect(() => {
     const fetchHistory = async () => {
       if (!activeChatTarget) return;
@@ -101,6 +111,7 @@ function ChatView() {
     fetchHistory();
   }, [activeChatTarget]);
 
+  // 📡 WEBSOCKET INTERCEPTORS LOGIC
   useEffect(() => {
     socket.on('receive_direct_message', (incomingMessage) => {
       if (activeChatTarget && !activeChatTarget.hasOwnProperty('teamScope')) {
@@ -127,6 +138,7 @@ function ChatView() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // ➕ HANDLER: MANUAL GROUP CREATION
   const handleCreateGroup = async (e) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
@@ -159,6 +171,7 @@ function ChatView() {
     }
   };
 
+  // 📬 MESSAGE SUBMISSION TRANSMISSION
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!typedMessage.trim() || !activeChatTarget) return;
@@ -219,13 +232,20 @@ function ChatView() {
 
   return (
     <div className="flex h-[74vh] w-full bg-[#1e1f21] border border-[#2d2e30] rounded-2xl overflow-hidden shadow-2xl animate-fade-in relative z-10">
+      
+      {/* 👥 LEFT COLUMN: DISPATCH PANELS DIRECTORY */}
       <div className="w-80 bg-[#252628]/60 border-r border-[#2d2e30] flex flex-col shrink-0">
         <div className="p-4 border-b border-[#2d2e30]/60 shrink-0 flex justify-between items-center bg-[#1a1b1c]/20">
           <div>
             <h2 className="text-xs font-black tracking-wider text-slate-300 uppercase">Peppy Chat Hub</h2>
-            <p className="text-[10px] text-[#848285] font-semibold capitalize">Role: {user?.role || 'Member'}</p>
+            <p className="text-[10px] text-[#848285] font-semibold capitalize">Global Corporate Access Enabled</p>
           </div>
-          <button onClick={() => setIsGroupModalOpen(true)} className="bg-red-500 hover:bg-red-600 text-white font-extrabold text-[10px] uppercase px-2 py-1 rounded-md tracking-wider transition shadow-md">+ Group</button>
+          <button 
+            onClick={() => setIsGroupModalOpen(true)} 
+            className="bg-red-500 hover:bg-red-600 text-white font-extrabold text-[10px] uppercase px-2 py-1 rounded-md tracking-wider transition shadow-md"
+          >
+            + Group
+          </button>
         </div>
 
         <div className="grid grid-cols-2 gap-1.5 p-2 bg-[#17181a]/50 border-b border-[#2d2e30]/40 shrink-0">
@@ -239,9 +259,18 @@ function ChatView() {
               <p className="text-[10px] text-slate-500 italic p-4 text-center">No workspace employees found.</p>
             ) : (
               users.map((member) => (
-                <div key={member._id} onClick={() => setActiveChatTarget(member)} className={`flex items-center gap-3 p-3 rounded-xl transition cursor-pointer border ${activeChatTarget?._id === member._id ? 'bg-red-500/10 border-red-500/40 text-white' : 'bg-transparent border-transparent hover:bg-[#2a2b2d]/50 text-slate-400 hover:text-white'}`}>
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-red-500 to-amber-500 flex items-center justify-center font-black text-xs text-white uppercase shadow-md shrink-0">{member.name ? member.name.substring(0, 2) : 'OP'}</div>
-                  <div className="min-w-0"><h4 className="text-xs font-bold truncate">{member.name}</h4><p className="text-[10px] text-[#848285] font-semibold truncate uppercase">{member.role} &bull; {member.team}</p></div>
+                <div 
+                  key={member._id} 
+                  onClick={() => setActiveChatTarget(member)} 
+                  className={`flex items-center gap-3 p-3 rounded-xl transition cursor-pointer border ${activeChatTarget?._id === member._id ? 'bg-red-500/10 border-red-500/40 text-white' : 'bg-transparent border-transparent hover:bg-[#2a2b2d]/50 text-slate-400 hover:text-white'}`}
+                >
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-red-500 to-amber-500 flex items-center justify-center font-black text-xs text-white uppercase shadow-md shrink-0">
+                    {member.name ? member.name.substring(0, 2) : 'OP'}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="text-xs font-bold truncate text-white">{member.name}</h4>
+                    <p className="text-[9px] text-[#848285] font-black truncate uppercase mt-0.5">{member.role} &bull; Dept: {member.team}</p>
+                  </div>
                 </div>
               ))
             )
@@ -250,9 +279,19 @@ function ChatView() {
               <p className="text-[10px] text-slate-500 italic p-4 text-center">No active channels synced.</p>
             ) : (
               chatGroups.map((group) => (
-                <div key={group._id} onClick={() => setActiveChatTarget(group)} className={`flex items-center gap-3 p-3 rounded-xl transition cursor-pointer border ${activeChatTarget?._id === group._id ? 'bg-purple-500/10 border-purple-500/40 text-white' : 'bg-transparent border-transparent hover:bg-[#2a2b2d]/50 text-slate-400 hover:text-white'}`}>
+                <div 
+                  key={group._id} 
+                  onClick={() => setActiveChatTarget(group)} 
+                  className={`flex items-center gap-3 p-3 rounded-xl transition cursor-pointer border ${activeChatTarget?._id === group._id ? 'bg-purple-500/10 border-purple-500/40 text-white' : 'bg-transparent border-transparent hover:bg-[#2a2b2d]/50 text-slate-400 hover:text-white'}`}
+                >
                   <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center font-black text-xs text-white shadow-md shrink-0">👥</div>
-                  <div className="min-w-0 flex-1"><div className="flex justify-between items-center"><h4 className="text-xs font-bold truncate text-slate-200">{group.name}</h4><span className="text-[8px] bg-purple-900/40 text-purple-400 border border-purple-500/20 px-1 rounded uppercase font-bold shrink-0">{group.teamScope}</span></div><p className="text-[10px] text-[#848285] font-medium truncate mt-0.5">{group.description || 'No logs.'}</p></div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-bold truncate text-slate-200">{group.name}</h4>
+                      <span className="text-[8px] bg-purple-900/40 text-purple-400 border border-purple-500/20 px-1 rounded uppercase font-bold shrink-0">{group.teamScope}</span>
+                    </div>
+                    <p className="text-[10px] text-[#848285] font-medium truncate mt-0.5">{group.description || 'No broadcast logs.'}</p>
+                  </div>
                 </div>
               ))
             )
@@ -260,12 +299,18 @@ function ChatView() {
         </div>
       </div>
 
+      {/* 💬 RIGHT COLUMN: ENCRYPTED MESSAGE WINDOW */}
       <div className="flex-1 flex flex-col bg-[#1e1f21] min-w-0 relative">
         {activeChatTarget ? (
           <>
             <div className="px-6 py-4 border-b border-[#2d2e30]/60 bg-[#252628]/30 flex items-center gap-3 shrink-0 relative z-10">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-              <div><h3 className="text-xs font-black tracking-wide text-white">{activeChatTarget.name}</h3><p className="text-[9px] text-[#848285] font-bold uppercase tracking-wider">{activeChatTarget.hasOwnProperty('teamScope') ? ` WhatsApp Group Channel` : activeChatTarget.email}</p></div>
+              <div>
+                <h3 className="text-xs font-black tracking-wide text-white">{activeChatTarget.name}</h3>
+                <p className="text-[9px] text-[#848285] font-bold uppercase tracking-wider">
+                  {activeChatTarget.hasOwnProperty('teamScope') ? ` WhatsApp Group Channel` : activeChatTarget.email}
+                </p>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[#1a1b1c]/40 relative z-10">
@@ -276,10 +321,14 @@ function ChatView() {
                 const msgSenderName = msg.sender?.name || 'Operator';
                 return (
                   <div key={msg._id} className={`flex flex-col w-full ${isMe ? 'items-end' : 'items-start'} animate-fade-in`}>
-                    {!isMe && activeChatTarget.hasOwnProperty('teamScope') && (<span className="text-[9px] text-purple-400 font-extrabold mb-1 ml-1 uppercase">{msgSenderName}</span>)}
+                    {!isMe && activeChatTarget.hasOwnProperty('teamScope') && (
+                      <span className="text-[9px] text-purple-400 font-extrabold mb-1 ml-1 uppercase">{msgSenderName}</span>
+                    )}
                     <div className={`max-w-[70%] px-4 py-3 rounded-2xl text-xs font-medium shadow-md leading-relaxed ${isMe ? 'bg-red-500 text-white rounded-br-none' : 'bg-[#252628] border border-[#333538] text-slate-200 rounded-bl-none'}`}>
                       <p>{renderMessageWithLinks(msg.text)}</p>
-                      <span className="block text-[8px] mt-1.5 opacity-60 text-right font-semibold">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="block text-[8px] mt-1.5 opacity-60 text-right font-semibold">
+                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
                     </div>
                   </div>
                 );
@@ -289,7 +338,7 @@ function ChatView() {
 
             <form onSubmit={handleSendMessage} className="p-4 border-t border-[#2d2e30]/60 bg-[#252628]/80 flex gap-3 shrink-0 relative items-center z-20">
               <input type="text" className="flex-1 bg-[#151617] border border-[#333538] rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition h-11" placeholder={`Type secure message thread to ${activeChatTarget.name}...`} value={typedMessage} onChange={(e) => setTypedMessage(e.target.value)} required />
-              <button type="submit" className="bg-red-500 hover:bg-red-600 text-white px-6 h-11 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-2xl cursor-pointer flex items-center justify-center shrink-0">Send 🚀</button>
+              <button type="submit" className="bg-red-500 hover:bg-red-600 text-white px-6 h-11 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-2xl flex items-center justify-center shrink-0">Send 🚀</button>
             </form>
           </>
         ) : (
@@ -301,15 +350,19 @@ function ChatView() {
         )}
       </div>
 
+      {/* 📱 MANUAL MANIFEST DEPLOY GROUP CHANNEL MODAL POPOUT */}
       {isGroupModalOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[999] p-4 animate-fade-in">
           <div className="bg-[#1e1f21] border border-[#2d2e30] w-full max-w-md rounded-2xl overflow-hidden p-6 shadow-2xl space-y-4">
-            <div><h3 className="text-sm font-black text-white uppercase tracking-wider">Deploy WhatsApp Workspace Group Channel</h3><p className="text-[10px] text-[#848285] mt-0.5">Select members globally across any track role bounds.</p></div>
+            <div>
+              <h3 className="text-sm font-black text-white uppercase tracking-wider">Deploy WhatsApp Workspace Group Channel</h3>
+              <p className="text-[10px] text-[#848285] mt-0.5">Select members globally across any track role bounds.</p>
+            </div>
             <form onSubmit={handleCreateGroup} className="space-y-3.5">
               <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Group Channel Title</label><input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="w-full bg-[#151617] border border-[#333538] rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-red-500" placeholder="e.g., UI Sprint Sync Team" required /></div>
               <div><label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Description Note</label><textarea value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)} className="w-full bg-[#151617] border border-[#333538] rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-red-500 h-16 resize-none" placeholder="What is this discussion channel optimized for..." /></div>
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Select Crew Core Members</label>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Select Crew Core Members (Global Active)</label>
                 <div className="max-h-28 overflow-y-auto bg-[#151617] border border-[#333538] rounded-xl p-2 space-y-1.5 custom-scrollbar">
                   {users.map(u => (
                     <label key={u._id} className="flex items-center gap-2 px-2 py-1 hover:bg-[#252628] rounded-md cursor-pointer text-xs text-slate-300">
@@ -327,6 +380,7 @@ function ChatView() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
