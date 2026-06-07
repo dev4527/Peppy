@@ -204,7 +204,7 @@ router.put('/:id', auth, async (req, res) => {
 
 
 // ==========================================
-// 🚀 UPGRADED REAL-TIME COMMENT ENGINE
+// 🚀 REAL-TIME COMMENT DISCUSSION ENGINE
 // ==========================================
 
 // @route   POST api/tasks/:id/comments
@@ -212,7 +212,6 @@ router.post('/:id/comments', auth, async (req, res) => {
   try {
     const { text, userName } = req.body;
     
-    // Populate assignedTo fields to track who needs to receive the comment mail
     const task = await Task.findById(req.params.id).populate('assignedTo', 'name email');
     if (!task) {
       return res.status(404).json({ message: 'Task configuration record missing.' });
@@ -228,22 +227,17 @@ router.post('/:id/comments', auth, async (req, res) => {
     task.comments.push(newComment);
     await task.save();
 
-    // 📬 TRIGGER BROADCAST MAIL ON EVERY COMMENT IF TRANSPORTER IS PRESENT
     if (req.transporter) {
       let targetList = [];
-      
-      // Extract specific @tagged email address through existing system structure
       const emailRegex = /@([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})/g;
       const detectedEmails = text.match(emailRegex);
 
       if (detectedEmails && detectedEmails.length > 0) {
         targetList = detectedEmails.map(m => m.substring(1));
       } else if (task.assignedTo && task.assignedTo.email) {
-        // Fallback: Agar kisi ko mention nahi kiya toh direct assigned user ko mail bhej do
         targetList.push(task.assignedTo.email);
       }
 
-      // Sweep through clean list map streams to send notifications seamlessly
       targetList.forEach(async (email) => {
         const mailOptions = {
           from: `"Peppy Activity Stream" <${process.env.EMAIL_USER}>`,
@@ -329,8 +323,14 @@ router.put('/:id/subtasks/:subId', auth, async (req, res) => {
   }
 });
 
-// @route   POST api/tasks/:id/upload
-router.post('/:id/upload', auth, upload.single('attachment'), async (req, res) => {
+
+// ==========================================
+// 📁 NEW MULTI-FORMAT ATTACHMENT ENDPOINTS 
+// ==========================================
+
+// @route   POST api/tasks/:id/attach-file
+// @desc    Upload documents and slides (PPT/PPTX, PDF, Doc, Images) safely
+router.post('/:id/attach-file', auth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'Binary asset document stream layer empty.' });
 
@@ -339,7 +339,8 @@ router.post('/:id/upload', auth, upload.single('attachment'), async (req, res) =
 
     const filePayload = {
       fileName: req.file.originalname,
-      filePath: `/uploads/${req.file.filename}`
+      filePath: `/uploads/${req.file.filename}`,
+      mimeType: req.file.mimetype || 'application/octet-stream'
     };
 
     task.attachments = task.attachments || [];
@@ -352,9 +353,59 @@ router.post('/:id/upload', auth, upload.single('attachment'), async (req, res) =
 
     return res.json(task);
   } catch (error) {
-    console.error('❌ File stream pipeline integration drop:', error);
+    console.error('❌ File stream storage mapping integration drop:', error);
     return res.status(500).json({ message: 'Internal server multer pipeline processing exception.' });
   }
+});
+
+// @route   POST api/tasks/:id/attach-link
+// @desc    Inject reference web urls and enforce auto clickable hyperlinks
+router.post('/:id/attach-link', auth, async (req, res) => {
+  try {
+    const { title, url } = req.body;
+    if (!url) return res.status(400).json({ message: 'Resource URL target path is mandatory.' });
+
+    const task = await Task.findById(req.params.id);
+    if (!task) return res.status(404).json({ message: 'Target task block configuration missing.' });
+
+    // Validate protocol structures safely to format an absolute hyperlink anchor
+    const cleanHyperlink = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
+
+    task.links = task.links || [];
+    task.links.push({
+      title: title || 'Workspace Resource Link',
+      url: cleanHyperlink
+    });
+
+    await task.save();
+
+    if (req.io) {
+      req.io.to(task.project.toString()).emit('task_changed', { taskId: task._id });
+    }
+
+    return res.json(task);
+  } catch (error) {
+    console.error('❌ Web link insertion engine drop:', error);
+    return res.status(500).json({ message: 'Internal engine link serialization drop.' });
+  }
+});
+
+// Old endpoint compatibility fallback alias link mapping setup safely
+router.post('/:id/upload', auth, upload.single('attachment'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'File missing.' });
+    const task = await Task.findById(req.params.id);
+    if (!task) return res.status(404).json({ message: 'Task not found.' });
+
+    task.attachments.push({
+      fileName: req.file.originalname,
+      filePath: `/uploads/${req.file.filename}`,
+      mimeType: req.file.mimetype
+    });
+    await task.save();
+    if (req.io) req.io.to(task.project.toString()).emit('task_changed', { taskId: task._id });
+    return res.json(task);
+  } catch (error) { return res.status(500).json({ message: error.message }); }
 });
 
 module.exports = router;
