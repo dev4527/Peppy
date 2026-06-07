@@ -82,7 +82,7 @@ function ChatView() {
 
   // 🧠 RE-QUERY CONVERSATION TIMELINE ON CHAT TARGET SWITCH
   useEffect(() => {
-    setShowMembersList(false); // Collapses side matrix smoothly on target swap
+    setShowMembersList(false); 
     const fetchHistory = async () => {
       if (!activeChatTarget) return;
       try {
@@ -92,7 +92,8 @@ function ChatView() {
           'x-auth-token': token 
         };
 
-        const isGroup = activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members');
+        // ⭐ BROAD BYPASS: Checking if it's a group conversation by comparing active Tab type
+        const isGroup = activeTab === 'groups';
         const endpoint = isGroup 
           ? `https://peppy-we0g.onrender.com/api/chats/group/history/${activeChatTarget._id}`
           : `https://peppy-we0g.onrender.com/api/chats/history/${activeChatTarget._id}`;
@@ -109,7 +110,7 @@ function ChatView() {
   // 📡 WEBSOCKET INTERCEPTORS
   useEffect(() => {
     socket.on('receive_direct_message', (incomingMessage) => {
-      if (activeChatTarget && !activeChatTarget.hasOwnProperty('teamScope') && !activeChatTarget.hasOwnProperty('members')) {
+      if (activeChatTarget && activeTab === 'private') {
         const incomingSenderId = incomingMessage.sender?._id || incomingMessage.sender;
         if (incomingSenderId === activeChatTarget._id) {
           setMessages(prev => [...prev, incomingMessage]);
@@ -118,7 +119,7 @@ function ChatView() {
     });
 
     socket.on('receive_group_message', (incomingGroupMsg) => {
-      if (activeChatTarget && incomingGroupMsg.group === activeChatTarget._id) {
+      if (activeChatTarget && activeTab === 'groups' && incomingGroupMsg.group === activeChatTarget._id) {
         setMessages(prev => [...prev, incomingGroupMsg]);
       }
     });
@@ -127,7 +128,7 @@ function ChatView() {
       socket.off('receive_direct_message');
       socket.off('receive_group_message');
     };
-  }, [activeChatTarget]);
+  }, [activeChatTarget, activeTab]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -174,7 +175,7 @@ function ChatView() {
     if (!currentUserId) return;
 
     const token = localStorage.getItem('peppy_token');
-    const isGroupChat = activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members');
+    const isGroupChat = activeTab === 'groups';
     const headers = { 
       'Authorization': `Bearer ${token}`,
       'x-auth-token': token 
@@ -272,15 +273,15 @@ function ChatView() {
                 <div className="min-w-0">
                   <h3 className="text-xs font-black tracking-wide text-white truncate">{activeChatTarget.name}</h3>
                   <p className="text-[9px] text-[#848285] font-bold uppercase tracking-wider truncate">
-                    {(activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members'))
+                    {activeTab === 'groups'
                       ? `📱 WhatsApp Group Connected &bull; ${activeChatTarget.members?.length || 0} Members` 
                       : activeChatTarget.email || `Secure Communication Thread`}
                   </p>
                 </div>
               </div>
               
-              {/* ⭐ FIXED OPTION: Explicit WhatsApp Group Member Toggle Action Button */}
-              {(activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members')) && (
+              {/* ⭐ COMPULSORY CONDITION RE-PATCHED: Checking direct Active Tab state trigger to un-hide button completely */}
+              {activeTab === 'groups' && (
                 <button 
                   type="button"
                   onClick={() => setShowMembersList(!showMembersList)}
@@ -303,7 +304,7 @@ function ChatView() {
                   const msgSenderName = msg.sender?.name || 'Team Member';
                   return (
                     <div key={msg._id} className={`flex flex-col w-full ${isMe ? 'items-end' : 'items-start'} animate-fade-in`}>
-                      {!isMe && (activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members')) && (
+                      {!isMe && activeTab === 'groups' && (
                         <span className="text-[9px] text-purple-400 font-extrabold mb-1 ml-1 uppercase">{msgSenderName}</span>
                       )}
                       <div className={`max-w-[70%] px-4 py-3 rounded-2xl text-xs font-medium shadow-md leading-relaxed ${isMe ? 'bg-red-500 text-white rounded-br-none' : 'bg-[#252628] border border-[#333538] text-slate-200 rounded-bl-none'}`}>
@@ -335,7 +336,7 @@ function ChatView() {
       </div>
 
       {/* ⭐ RIGHT SIDE PANEL: EXTENDED MEMBERS REPOSITORY INTERFACE */}
-      {activeChatTarget && (activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members')) && showMembersList && (
+      {activeChatTarget && activeTab === 'groups' && showMembersList && (
         <div className="w-64 bg-[#1a1b1c] border-l border-[#2d2e30] flex flex-col shrink-0 animate-fade-in relative z-20">
           <div className="p-4 border-b border-[#2d2e30]/60 bg-[#252628]/20 shrink-0">
             <h4 className="text-[10px] font-black text-purple-400 uppercase tracking-wider">Group Info Deck</h4>
