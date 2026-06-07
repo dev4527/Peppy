@@ -1,9 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const Message = require('../models/Message');
+
+// ✅ FIXED CRITICAL MODEL PATH: Mapping directly to your actual schema file 'Chat.js'
+const Message = require('../models/Chat'); 
 const ChatGroup = require('../models/ChatGroup');
 const User = require('../models/User');
 const auth = require('../middleware/authMiddleware');
+
+// ==========================================
+// Baki saara code bilkul same rahega niche tak...
+// ==========================================
 
 // ==========================================
 // 👤 EXISTING 1-ON-1 PRIVATE CHATS SECTION
@@ -89,17 +95,15 @@ router.post('/send', auth, async (req, res) => {
 // 👥 NEW WHATSAPP-STYLE GROUP CHATS SECTION
 // ==========================================
 
-// ➕ @route   POST api/chats/groups
-// @desc    Create a new mini-WhatsApp corporate chat group channel
-router.post('/groups', auth, async (req, res) => {
-  const { name, description, teamScope, members } = req.body;
+// ⚡ MASTER ALIGNED ALIASES HANDLER BLOCK: Resolves both group and groups triggers without missing reference crash
+const handleGroupCreationStream = async (req, res) => {
+  const { name, description, teamScope, members, project } = req.body;
 
   try {
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'Group Name parameter is missing.' });
     }
 
-    // ⚡ EXTRACTOR PIPELINE SAFEGUARD: Resolving token structure payload layers cleanly
     let targetUserId = null;
     if (req.user) {
       if (req.user.user && req.user.user.id) {
@@ -124,7 +128,11 @@ router.post('/groups', auth, async (req, res) => {
     const groupTeamScope = currentUser.role === 'Admin' ? (teamScope || 'Technical Team') : currentUser.team;
 
     // Build unique members array list seamlessly without any undefined parameters injection
-    let finalMembersList = members || [];
+    let finalMembersList = [];
+    if (members) {
+      finalMembersList = typeof members === 'string' ? JSON.parse(members) : [...members];
+    }
+    
     if (!finalMembersList.includes(targetUserId)) {
       finalMembersList.push(targetUserId);
     }
@@ -134,7 +142,8 @@ router.post('/groups', auth, async (req, res) => {
       description: description ? description.trim() : '',
       teamScope: groupTeamScope,
       members: finalMembersList,
-      createdBy: targetUserId
+      createdBy: targetUserId,
+      project: project || null
     });
 
     await newGroup.save();
@@ -145,13 +154,15 @@ router.post('/groups', auth, async (req, res) => {
     console.error('❌ Group generation transaction loop drop:', error);
     return res.status(500).json({ message: 'Server crash during team group creation: ' + error.message });
   }
-});
+};
 
-// 🧭 @route   GET api/chats/groups
-// @desc    Fetch groups dynamically based on role visibility criteria 📱
-router.get('/groups', auth, async (req, res) => {
+// ➕ @route   POST api/chats/groups OR api/chats/group
+router.post('/groups', auth, handleGroupCreationStream);
+router.post('/group', auth, handleGroupCreationStream);
+
+// 🧭 @route   GET api/chats/groups OR api/chats/group
+const handleFetchGroupsStream = async (req, res) => {
   try {
-    // ⚡ EXTRACTION SAFEGUARD ALSO APPLIED HERE FOR QUERY PIPELINES
     let targetUserId = null;
     if (req.user) {
       if (req.user.user && req.user.user.id) {
@@ -164,7 +175,7 @@ router.get('/groups', auth, async (req, res) => {
     }
 
     if (!targetUserId) {
-      return res.status(401).json({ message: 'User authorization extraction error during history stream access.' });
+      return res.status(401).json({ message: 'User authorization extraction error.' });
     }
 
     const currentUser = await User.findById(targetUserId);
@@ -172,12 +183,10 @@ router.get('/groups', auth, async (req, res) => {
 
     let visibleGroups;
 
-    // 👑 ADMIN / CEO LOOKUP: Gets absolutely every chat group inside the entire company
+    // Admin pulls global array blocks, managers filter explicitly
     if (currentUser.role === 'Admin') {
       visibleGroups = await ChatGroup.find().populate('members', 'name email role team').sort({ updatedAt: -1 });
-    } 
-    // 🏢 MANAGER & EMPLOYEE ACCESS: Can only see groups matching their team scope OR where they are manually added
-    else {
+    } else {
       visibleGroups = await ChatGroup.find({
         $or: [
           { teamScope: currentUser.team },
@@ -186,12 +195,15 @@ router.get('/groups', auth, async (req, res) => {
       }).populate('members', 'name email role team').sort({ updatedAt: -1 });
     }
 
-    return res.json(visibleGroups);
+    return res.json(visibleGroups || []);
   } catch (error) {
     console.error('❌ Visible chat group collection drop:', error);
     return res.status(500).json({ message: 'Server error processing group queries.' });
   }
-});
+};
+
+router.get('/groups', auth, handleFetchGroupsStream);
+router.get('/group', auth, handleFetchGroupsStream);
 
 // ⏳ @route   GET api/chats/group/history/:groupId
 // @desc    Fetch message stream for a specific chat group channel
@@ -225,7 +237,7 @@ router.get('/group/history/:groupId', auth, async (req, res) => {
       .populate('sender', 'name email role team')
       .sort({ createdAt: 1 });
 
-    return res.json(groupHistory);
+    return res.json(groupHistory || []);
   } catch (error) {
     console.error('❌ Group history stream retrieval failed:', error);
     return res.status(500).json({ message: 'Server exception mapping group conversations.' });
