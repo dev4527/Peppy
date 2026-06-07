@@ -14,7 +14,7 @@ function ChatView() {
   const [messages, setMessages] = useState([]);
   const [typedMessage, setTypedMessage] = useState('');
   
-  // ⚡ WHATSAPP STATE CONTROL PANEL
+  // 👥 WHATSAPP SIDE-DRAWER STATE
   const [showMembersList, setShowMembersList] = useState(false);
 
   // CREATE GROUP STATE
@@ -41,7 +41,7 @@ function ChatView() {
     });
   };
 
-  // 📂 GLOBAL DIRECTORY FETCH ENGINE
+  // 📂 FETCH ALL EMPLOYEES GLOBALLY & ALL SYNCED CHAT GROUPS
   const fetchInitialData = async () => {
     try {
       const token = localStorage.getItem('peppy_token');
@@ -80,8 +80,9 @@ function ChatView() {
     }
   }, [user]);
 
-  // 🧠 RELOAD MESSAGES TIMELINE CHRONOLOGICAL SEQUENCE
+  // 🧠 RE-QUERY CONVERSATION TIMELINE ON CHAT TARGET SWITCH
   useEffect(() => {
+    setShowMembersList(false); // Collapses side matrix smoothly on target swap
     const fetchHistory = async () => {
       if (!activeChatTarget) return;
       try {
@@ -91,7 +92,6 @@ function ChatView() {
           'x-auth-token': token 
         };
 
-        // SAFE GUARD: Group check condition handles both backend structures comfortably
         const isGroup = activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members');
         const endpoint = isGroup 
           ? `https://peppy-we0g.onrender.com/api/chats/group/history/${activeChatTarget._id}`
@@ -106,7 +106,7 @@ function ChatView() {
     fetchHistory();
   }, [activeChatTarget]);
 
-  // 📡 WEBSOCKET CORE INTERCEPTORS
+  // 📡 WEBSOCKET INTERCEPTORS
   useEffect(() => {
     socket.on('receive_direct_message', (incomingMessage) => {
       if (activeChatTarget && !activeChatTarget.hasOwnProperty('teamScope') && !activeChatTarget.hasOwnProperty('members')) {
@@ -133,7 +133,6 @@ function ChatView() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // ➕ CREATE GROUP INJECTOR
   const handleCreateGroup = async (e) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
@@ -167,7 +166,6 @@ function ChatView() {
     }
   };
 
-  // 📬 MESSAGE DISPATCH SCRIPT
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!typedMessage.trim() || !activeChatTarget) return;
@@ -227,21 +225,21 @@ function ChatView() {
   };
 
   return (
-    <div className="flex h-[74vh] w-full bg-[#1e1f21] border border-[#2d2e30] rounded-2xl overflow-hidden shadow-2xl animate-fade-in relative z-10 text-left">
+    <div className="flex h-[74vh] w-full bg-[#1e1f21] border border-[#2d2e30] rounded-2xl overflow-hidden shadow-2xl animate-fade-in relative z-10 text-left select-none">
       
-      {/* 👥 LEFT PANEL DIRECTORY (WHATSAPP TRACK LANE) */}
+      {/* 👥 LEFT PANELS NAVIGATION LANE */}
       <div className="w-80 bg-[#252628]/60 border-r border-[#2d2e30] flex flex-col shrink-0">
         <div className="p-4 border-b border-[#2d2e30]/60 shrink-0 flex justify-between items-center bg-[#1a1b1c]/20">
           <div>
             <h2 className="text-xs font-black tracking-wider text-slate-300 uppercase">Peppy Chat Hub</h2>
             <p className="text-[10px] text-[#848285] font-semibold capitalize">Global Channels Desk Active</p>
           </div>
-          <button onClick={() => setIsGroupModalOpen(true)} className="bg-red-500 hover:bg-red-600 text-white font-extrabold text-[10px] uppercase px-2 py-1 rounded-md tracking-wider transition shadow-md">+ Group</button>
+          <button onClick={() => setIsGroupModalOpen(true)} className="bg-red-500 hover:bg-red-600 text-white font-extrabold text-[10px] uppercase px-2 py-1 rounded-md tracking-wider transition shadow-md shrink-0 cursor-pointer">+ Group</button>
         </div>
 
         <div className="grid grid-cols-2 gap-1.5 p-2 bg-[#17181a]/50 border-b border-[#2d2e30]/40 shrink-0">
-          <button onClick={() => { setActiveTab('private'); setActiveChatTarget(null); setMessages([]); setShowMembersList(false); }} className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition ${activeTab === 'private' ? 'bg-red-500/10 border border-red-500/30 text-white' : 'text-slate-400 hover:bg-[#2a2b2d]/30'}`}>💬 Private Chats</button>
-          <button onClick={() => { setActiveTab('groups'); setActiveChatTarget(null); setMessages([]); setShowMembersList(false); }} className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition ${activeTab === 'groups' ? 'bg-red-500/10 border border-red-500/30 text-white' : 'text-slate-400 hover:bg-[#2a2b2d]/30'}`}>📱 WhatsApp Groups</button>
+          <button onClick={() => { setActiveTab('private'); setActiveChatTarget(null); setMessages([]); setShowMembersList(false); }} className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition cursor-pointer ${activeTab === 'private' ? 'bg-red-500/10 border border-red-500/30 text-white' : 'text-slate-400 hover:bg-[#2a2b2d]/30'}`}>💬 Private Chats</button>
+          <button onClick={() => { setActiveTab('groups'); setActiveChatTarget(null); setMessages([]); setShowMembersList(false); }} className={`py-2 text-[10px] font-black uppercase tracking-wider rounded-lg transition cursor-pointer ${activeTab === 'groups' ? 'bg-red-500/10 border border-red-500/30 text-white' : 'text-slate-400 hover:bg-[#2a2b2d]/30'}`}>📱 WhatsApp Groups</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1.5 custom-scrollbar">
@@ -263,38 +261,40 @@ function ChatView() {
         </div>
       </div>
 
-      {/* 💬 MIDDLE ENGINE COLUMN: RENDER SCREEN ACTIVATED WITHOUT FALLBACK COLLAPSE */}
+      {/* 💬 MIDDLE ENGINE COLUMN: CONTENT CONTAINER */}
       <div className="flex-1 flex flex-col bg-[#1e1f21] min-w-0 relative">
         {activeChatTarget ? (
           <>
-            {/* 📱 WHATSAPP CLICKABLE TOP HEADER */}
-            <div 
-              onClick={() => { if (activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members')) setShowMembersList(!showMembersList); }}
-              className={`px-6 py-4 border-b border-[#2d2e30]/60 bg-[#252628]/30 flex items-center justify-between gap-3 shrink-0 relative z-10 cursor-pointer hover:bg-[#252628]/40 transition-all`}
-            >
+            {/* 📱 WHATSAPP HEADER CHAT DECK */}
+            <div className="px-6 py-4 border-b border-[#2d2e30]/60 bg-[#252628]/30 flex items-center justify-between gap-3 shrink-0 relative z-10">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
                 <div className="min-w-0">
                   <h3 className="text-xs font-black tracking-wide text-white truncate">{activeChatTarget.name}</h3>
                   <p className="text-[9px] text-[#848285] font-bold uppercase tracking-wider truncate">
                     {(activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members'))
-                      ? `📱 WHATSAPP GROUP (${activeChatTarget.members?.length || 0} Members Connected &bull; View Info)` 
-                      : activeChatTarget.email || `Private Account Thread`}
+                      ? `📱 WhatsApp Group Connected &bull; ${activeChatTarget.members?.length || 0} Members` 
+                      : activeChatTarget.email || `Secure Communication Thread`}
                   </p>
                 </div>
               </div>
               
+              {/* ⭐ FIXED OPTION: Explicit WhatsApp Group Member Toggle Action Button */}
               {(activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members')) && (
-                <div className="text-[10px] text-slate-400 font-bold bg-[#1e1f21] border border-[#2d2e30] px-2.5 py-1 rounded-lg shrink-0 uppercase tracking-wide">
-                  {showMembersList ? 'Hide Info ✕' : 'View Info 📋'}
-                </div>
+                <button 
+                  type="button"
+                  onClick={() => setShowMembersList(!showMembersList)}
+                  className="text-[10px] font-black uppercase bg-purple-600 hover:bg-purple-700 text-white border border-purple-500 px-3 py-1.5 rounded-xl transition cursor-pointer shadow-md select-none shrink-0"
+                >
+                  {showMembersList ? 'Hide Group Members ✕' : 'View Group Members 👥'}
+                </button>
               )}
             </div>
 
-            {/* MESSAGE CONTAINER WINDOW */}
+            {/* MESSAGES FLOW LAYER */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[#1a1b1c]/40 relative z-10">
               {messages.length === 0 ? (
-                <div className="text-center text-slate-600 dark:text-slate-500 italic text-[11px] pt-12">No messages broadcasted in this corporate secure room yet. Start the thread! 👋</div>
+                <div className="text-center text-slate-600 dark:text-slate-500 italic text-[11px] pt-12">No corporate logs broadcasted in this space yet.</div>
               ) : (
                 messages.map((msg) => {
                   const currentUserId = user?.id || user?._id;
@@ -319,10 +319,10 @@ function ChatView() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* SEND FORM BOX */}
+            {/* SEND INPUT CONTROL BAR */}
             <form onSubmit={handleSendMessage} className="p-4 border-t border-[#2d2e30]/60 bg-[#252628]/80 flex gap-3 shrink-0 relative items-center z-20">
               <input type="text" className="flex-1 bg-[#151617] border border-[#333538] rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition h-11" placeholder={`Type secure message thread to ${activeChatTarget.name}...`} value={typedMessage} onChange={(e) => setTypedMessage(e.target.value)} required />
-              <button type="submit" className="bg-red-500 hover:bg-red-600 text-white px-6 h-11 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-2xl flex items-center justify-center shrink-0">Send 🚀</button>
+              <button type="submit" className="bg-red-500 hover:bg-red-600 text-white px-6 h-11 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-2xl flex items-center justify-center shrink-0 cursor-pointer">Send 🚀</button>
             </form>
           </>
         ) : (
@@ -334,11 +334,11 @@ function ChatView() {
         )}
       </div>
 
-      {/* ⭐ RIGHT SIDE PANEL: WHATSAPP MEMBER LOG CHANNELS SUMMARY */}
+      {/* ⭐ RIGHT SIDE PANEL: EXTENDED MEMBERS REPOSITORY INTERFACE */}
       {activeChatTarget && (activeChatTarget.hasOwnProperty('teamScope') || activeChatTarget.hasOwnProperty('members')) && showMembersList && (
         <div className="w-64 bg-[#1a1b1c] border-l border-[#2d2e30] flex flex-col shrink-0 animate-fade-in relative z-20">
           <div className="p-4 border-b border-[#2d2e30]/60 bg-[#252628]/20 shrink-0">
-            <h4 className="text-[10px] font-black text-red-400 uppercase tracking-wider">Group Info Deck</h4>
+            <h4 className="text-[10px] font-black text-purple-400 uppercase tracking-wider">Group Info Deck</h4>
             <p className="text-white text-xs font-black mt-1 truncate">{activeChatTarget.name}</p>
           </div>
           
@@ -349,7 +349,7 @@ function ChatView() {
 
           <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2.5">
             <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
-              Group Members ({activeChatTarget.members?.length || 0})
+              Group Members List ({activeChatTarget.members?.length || 0})
             </span>
             
             {activeChatTarget.members && activeChatTarget.members.length > 0 ? (
@@ -373,13 +373,13 @@ function ChatView() {
                 );
               })
             ) : (
-              <p className="text-[10px] text-slate-500 italic text-center p-2">No populated profile records.</p>
+              <p className="text-[10px] text-slate-500 italic text-center p-2">No profiles populated records found.</p>
             )}
           </div>
         </div>
       )}
 
-      {/* MANUAL GROUP DEPLOY MODAL BLOCK */}
+      {/* RE-USABLE MODAL PANEL GENERATOR */}
       {isGroupModalOpen && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[999] p-4 animate-fade-in">
           <div className="bg-[#1e1f21] border border-[#2d2e30] w-full max-w-md rounded-2xl overflow-hidden p-6 shadow-2xl space-y-4">
