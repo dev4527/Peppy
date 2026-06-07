@@ -14,6 +14,9 @@ function ChatView() {
   const [messages, setMessages] = useState([]);
   const [typedMessage, setTypedMessage] = useState('');
   
+  // ⭐ WHATSAPP CONFIGURATION EXTRA: Toggle link state to display active channels crew info stack
+  const [showMembersList, setShowMembersList] = useState(false);
+
   // ➕ CREATE GROUP STATE
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
@@ -88,6 +91,9 @@ function ChatView() {
 
   // 🧠 RE-QUERY CONVERSATION TIMELINE ON CHAT TARGET SWITCH
   useEffect(() => {
+    // WhatsApp style panel override: collapse detail deck whenever target room alters
+    setShowMembersList(false);
+    
     const fetchHistory = async () => {
       if (!activeChatTarget) return;
       try {
@@ -166,6 +172,7 @@ function ChatView() {
       setSelectedMembers([]);
       setIsGroupModalOpen(false);
       alert(`💬 Group "${res.data.name}" deployed successfully!`);
+      fetchInitialData(); // Hot reloads internal objects structure arrays mapping
     } catch (err) {
       console.error('❌ Group create endpoint breakdown:', err);
     }
@@ -231,7 +238,7 @@ function ChatView() {
   };
 
   return (
-    <div className="flex h-[74vh] w-full bg-[#1e1f21] border border-[#2d2e30] rounded-2xl overflow-hidden shadow-2xl animate-fade-in relative z-10">
+    <div className="flex h-[74vh] w-full bg-[#1e1f21] border border-[#2d2e30] rounded-2xl overflow-hidden shadow-2xl animate-fade-in relative z-10 text-left">
       
       {/* 👥 LEFT COLUMN: DISPATCH PANELS DIRECTORY */}
       <div className="w-80 bg-[#252628]/60 border-r border-[#2d2e30] flex flex-col shrink-0">
@@ -299,18 +306,33 @@ function ChatView() {
         </div>
       </div>
 
-      {/* 💬 RIGHT COLUMN: ENCRYPTED MESSAGE WINDOW */}
+      {/* 💬 MIDDLE COLUMN: ENCRYPTED MESSAGE WINDOW */}
       <div className="flex-1 flex flex-col bg-[#1e1f21] min-w-0 relative">
         {activeChatTarget ? (
           <>
-            <div className="px-6 py-4 border-b border-[#2d2e30]/60 bg-[#252628]/30 flex items-center gap-3 shrink-0 relative z-10">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-              <div>
-                <h3 className="text-xs font-black tracking-wide text-white">{activeChatTarget.name}</h3>
-                <p className="text-[9px] text-[#848285] font-bold uppercase tracking-wider">
-                  {activeChatTarget.hasOwnProperty('teamScope') ? ` WhatsApp Group Channel` : activeChatTarget.email}
-                </p>
+            {/* ⭐ WHATSAPP STANDARD HEADER ACTION BAR: Clicking this bar expands the crew tracking directory side-panel */}
+            <div 
+              onClick={() => { if (activeChatTarget.hasOwnProperty('teamScope')) { setShowMembersList(!showMembersList); } }}
+              className={`px-6 py-4 border-b border-[#2d2e30]/60 bg-[#252628]/30 flex items-center justify-between gap-3 shrink-0 relative z-10 ${activeChatTarget.hasOwnProperty('teamScope') ? 'cursor-pointer hover:bg-[#252628]/40 transition-all duration-150' : ''}`}
+              title={activeChatTarget.hasOwnProperty('teamScope') ? "Click here to toggle group information panel" : ""}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-black tracking-wide text-white truncate">{activeChatTarget.name}</h3>
+                  <p className="text-[9px] text-[#848285] font-bold uppercase tracking-wider truncate">
+                    {activeChatTarget.hasOwnProperty('teamScope') 
+                      ? `📱 WHATSAPP GROUP (${activeChatTarget.members?.length || 0} Members Connected &bull; Tap here)` 
+                      : activeChatTarget.email}
+                  </p>
+                </div>
               </div>
+              
+              {activeChatTarget.hasOwnProperty('teamScope') && (
+                <div className="text-[10px] text-slate-400 font-bold bg-[#1e1f21] border border-[#2d2e30] px-2.5 py-1 rounded-lg shrink-0 uppercase tracking-wide">
+                  {showMembersList ? 'Hide Info ✕' : 'View Info 📋'}
+                </div>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar bg-[#1a1b1c]/40 relative z-10">
@@ -338,7 +360,7 @@ function ChatView() {
 
             <form onSubmit={handleSendMessage} className="p-4 border-t border-[#2d2e30]/60 bg-[#252628]/80 flex gap-3 shrink-0 relative items-center z-20">
               <input type="text" className="flex-1 bg-[#151617] border border-[#333538] rounded-xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-red-500 transition h-11" placeholder={`Type secure message thread to ${activeChatTarget.name}...`} value={typedMessage} onChange={(e) => setTypedMessage(e.target.value)} required />
-              <button type="submit" className="bg-red-500 hover:bg-red-600 text-white px-6 h-11 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-2xl flex items-center justify-center shrink-0">Send 🚀</button>
+              <button type="submit" className="bg-red-500 hover:bg-red-600 text-white px-6 h-11 rounded-xl font-black text-xs uppercase tracking-wider transition shadow-2xl cursor-pointer flex items-center justify-center shrink-0">Send 🚀</button>
             </form>
           </>
         ) : (
@@ -349,6 +371,51 @@ function ChatView() {
           </div>
         )}
       </div>
+
+      {/* ⭐ RIGHT SIDE PANEL: WHATSAPP-STYLE CREW MEMBERS INSPECTOR DRAWER */}
+      {activeChatTarget && activeChatTarget.hasOwnProperty('teamScope') && showMembersList && (
+        <div className="w-64 bg-[#1a1b1c] border-l border-[#2d2e30] flex flex-col shrink-0 animate-fade-in relative z-20">
+          <div className="p-4 border-b border-[#2d2e30]/60 bg-[#252628]/20 shrink-0">
+            <h4 className="text-[10px] font-black text-red-400 uppercase tracking-wider">Group Info Deck</h4>
+            <p className="text-white text-xs font-black mt-1 truncate">{activeChatTarget.name}</p>
+          </div>
+          
+          <div className="p-4 border-b border-[#2d2e30]/40 space-y-1 shrink-0">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">Description/Purpose</span>
+            <p className="text-[11px] text-slate-300 leading-relaxed font-medium">{activeChatTarget.description || 'No descriptive logs found for this channel.'}</p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-2.5">
+            <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block mb-1">
+              Group Members ({activeChatTarget.members?.length || 0})
+            </span>
+            
+            {activeChatTarget.members && activeChatTarget.members.length > 0 ? (
+              activeChatTarget.members.map((memberIdx) => {
+                const isCreator = memberIdx._id === activeChatTarget.createdBy;
+                return (
+                  <div key={memberIdx._id} className="flex items-center gap-2.5 bg-[#252628]/40 p-2 rounded-xl border border-[#2d2e30]/50 hover:border-[#333538] transition duration-150">
+                    <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-slate-700 to-slate-800 border border-slate-600/30 flex items-center justify-center font-black text-[9px] text-slate-200 uppercase shrink-0 shadow-sm">
+                      {memberIdx.name ? memberIdx.name.substring(0, 2) : 'EM'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <h5 className="text-[11px] font-black text-slate-200 truncate">{memberIdx.name || 'Team Operator'}</h5>
+                        {isCreator && (
+                          <span className="text-[8px] bg-red-500/10 text-red-400 border border-red-500/20 font-black rounded px-1 uppercase shrink-0 tracking-tighter">Admin</span>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-[#848285] font-bold uppercase tracking-wide truncate mt-0.5">{memberIdx.role || 'Member'} &bull; {memberIdx.team || 'HQ'}</p>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-[10px] text-slate-500 italic text-center p-2">No populated profile records.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 📱 MANUAL MANIFEST DEPLOY GROUP CHANNEL MODAL POPOUT */}
       {isGroupModalOpen && (
