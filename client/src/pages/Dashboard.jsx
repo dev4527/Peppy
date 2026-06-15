@@ -371,6 +371,12 @@ function Dashboard() {
             <HomePortal tasks={tasks} projects={projects} setCurrentProject={setCurrentProject} setShowMyTasks={setShowMyTasks} setViewMode={setViewMode} userName={user?.name} theme={theme} />
           ) : viewMode === 'chat_room' ? (
             <div className="p-8"><ChatView theme={theme} /></div>
+          ) : viewMode === 'calendar' ? (
+            <div className="p-8"><CalendarView tasks={tasks} onSelectTask={setSelectedTask} /></div>
+          ) : viewMode === 'analytics' ? (
+            <div className="p-8"><AnalyticsView tasks={tasks} /></div>
+          ) : viewMode === 'profile' ? (
+            <div className="p-8"><ProfileView tasks={tasks} /></div>
           ) : (
             <div className="p-8"></div>
           )}
