@@ -34,6 +34,30 @@ router.post('/', auth, async (req, res) => {
 
     const project = await newProject.save();
     console.log(`🚀 Project board [${project.name}] successfully synchronized into database.`);
+    // If request asked to auto-create a chat group for this project, create it
+    const { createGroup, groupMembers, groupDescription } = req.body;
+    if (createGroup) {
+      try {
+        const membersList = groupMembers ? (typeof groupMembers === 'string' ? JSON.parse(groupMembers) : groupMembers) : [];
+        // ensure creator is included
+        const creatorIdStr = String(finalCreatorID);
+        if (!membersList.map(m => String(m)).includes(creatorIdStr)) membersList.push(finalCreatorID);
+
+        const newGroup = new ChatGroup({
+          name: `${project.name} Sync Group`,
+          description: groupDescription || `Auto-generated group for project ${project.name}`,
+          teamScope: project.teamCategory || 'Global',
+          members: membersList,
+          createdBy: finalCreatorID,
+          project: project._id
+        });
+        await newGroup.save();
+        console.log(`💬 Auto-created chat group for project [${project.name}]`);
+      } catch (grpErr) {
+        console.error('❌ Failed to auto-create project chat group:', grpErr.message);
+      }
+    }
+
     return res.json(project);
 
   } catch (error) {

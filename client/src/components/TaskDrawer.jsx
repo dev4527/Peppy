@@ -6,6 +6,8 @@ function TaskDrawer({ task, onClose, onRefresh }) {
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [linkTitle, setLinkTitle] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
   
   // Local reactive states to bypass render locks
   const [localComments, setLocalComments] = useState([]);
@@ -220,14 +222,48 @@ function TaskDrawer({ task, onClose, onRefresh }) {
               <p className="text-[10px] text-slate-600 italic pl-1">No documents repository linked.</p>
             )}
           </div>
+          
+          {/* Insert Link Panel */}
+          <div className="mt-3">
+            <h5 className="text-[10px] text-slate-400 font-bold mb-2">🔗 Insert Link</h5>
+            <div className="flex gap-2 mb-2">
+              <input type="text" placeholder="Link title (optional)" value={linkTitle} onChange={(e) => setLinkTitle(e.target.value)} className="flex-1 bg-[#252628] border border-[#333538] rounded-xl px-3 py-2 text-white text-xs focus:outline-none" />
+              <input type="text" placeholder="https://example.com" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} className="flex-1 bg-[#252628] border border-[#333538] rounded-xl px-3 py-2 text-white text-xs focus:outline-none" />
+              <button onClick={async (e) => {
+                e.preventDefault();
+                if (!linkUrl || !linkUrl.trim()) return alert('Enter a URL');
+                try {
+                  const token = localStorage.getItem('peppy_token');
+                  const res = await axios.post(`https://peppy-we0g.onrender.com/api/tasks/${task._id}/attach-link`, { title: linkTitle, url: linkUrl }, { headers: { Authorization: `Bearer ${token}` } });
+                  if (res.data && res.data.links) {
+                    setLocalAttachments(prev => prev); // keep attachments
+                    // refresh via provided callback
+                    if (typeof onRefresh === 'function') onRefresh();
+                    setLinkTitle(''); setLinkUrl('');
+                  }
+                } catch (err) { console.error('Insert link failed', err); alert('Failed to attach link'); }
+              }} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-xl text-[10px]">Add</button>
+            </div>
+
+            {/* Render Links */}
+            <div className="space-y-2 max-h-28 overflow-y-auto">
+              {(task.links || []).map((ln, idx) => (
+                <div key={ln._id || idx} className="flex items-center justify-between bg-[#252628] border border-[#333538] p-2.5 rounded-xl">
+                  <a href={ln.url} target="_blank" rel="noreferrer" className="text-slate-200 truncate max-w-[200px]">🔗 {ln.title || ln.url}</a>
+                  <a href={ln.url} target="_blank" rel="noreferrer" className="text-red-400 hover:text-red-300 font-bold text-[10px] uppercase border border-red-500/20 px-2 py-0.5 rounded-lg bg-red-500/5">Open</a>
+                </div>
+              ))}
+              {(task.links || []).length === 0 && (<p className="text-[10px] text-slate-600 italic">No links attached.</p>)}
+            </div>
+          </div>
         </div>
 
         {/* Subtask Breakdown Deck */}
         <div className="border-t border-[#2d2e30] pt-4">
           <h4 className="text-[#848285] font-bold mb-2 uppercase text-[10px] tracking-wider">Subtask Breakdown</h4>
           <div className="space-y-2 mb-3 max-h-32 overflow-y-auto custom-scrollbar">
-            {localSubtasks.map((st) => (
-              <div key={st._id || Math.random()} className="flex items-center gap-2.5 bg-[#252628]/40 px-3 py-2 rounded-xl border border-[#333538]/60">
+            {localSubtasks.map((st, idx) => (
+              <div key={st._id || `sub-${idx}`} className="flex items-center gap-2.5 bg-[#252628]/40 px-3 py-2 rounded-xl border border-[#333538]/60">
                 <input 
                   type="checkbox" 
                   checked={st.isCompleted} 

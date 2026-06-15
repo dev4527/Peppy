@@ -29,6 +29,19 @@ const UserSchema = new mongoose.Schema({
     default: 'Website Team',
     trim: true
   }
+  ,
+  // Reference to the user's direct manager (another User)
+  manager: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  },
+  // Optional manager role label (e.g., CTO, CMO, COO)
+  managerRole: {
+    type: String,
+    trim: true,
+    default: null
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', UserSchema);

@@ -88,8 +88,29 @@ router.get('/users', auth, async (req, res) => {
     // 🚀 FIXED BYPASS: Agar login user Admin (Shyamal) hai, toh bina kisi validation restrictions ke DIRECT saare employees pull karo!
     if (currentUserProfile && currentUserProfile.role === 'Admin') {
       usersList = await User.find({ _id: { $ne: currentCreatorID } }).select('-password').sort({ name: 1 });
+    } else if (currentUserProfile && currentUserProfile.role === 'Manager') {
+      // Managers should only see their direct reports and users assigned to projects they created
+      const managerId = currentCreatorID;
+      // Direct reports
+      const directReports = await User.find({ manager: managerId }).select('-password').sort({ name: 1 });
+
+      // Users assigned to tasks in projects created by this manager
+      const managerProjects = await require('../models/Project').find({ createdBy: managerId }).select('_id');
+      const projectIds = managerProjects.map(p => p._id);
+      const tasks = await require('../models/Task').find({ project: { $in: projectIds } }).select('assignedTo');
+      const assignedUserIds = tasks.map(t => String(t.assignedTo)).filter(Boolean);
+
+      const assignedUsers = await User.find({ _id: { $in: assignedUserIds } }).select('-password').sort({ name: 1 });
+
+      // Merge unique users
+      const mergedMap = new Map();
+      directReports.forEach(u => mergedMap.set(String(u._id), u));
+      assignedUsers.forEach(u => mergedMap.set(String(u._id), u));
+
+      usersList = Array.from(mergedMap.values());
     } else {
-      usersList = await User.find({ _id: { $ne: currentCreatorID } }).select('-password').sort({ name: 1 });
+      // Regular employees see only themselves and perhaps team members in same team
+      usersList = await User.find({ _id: currentCreatorID }).select('-password');
     }
 
     return res.json(usersList);

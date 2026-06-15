@@ -21,6 +21,12 @@ const ChatGroupSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User' 
   }],
+  // Optional link to the Project this group is created for
+  project: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    default: null
+  },
   createdBy: { 
     type: mongoose.Schema.Types.ObjectId, 
     ref: 'User', 

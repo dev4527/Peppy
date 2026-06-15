@@ -42,7 +42,41 @@ const upload = multer({
 // @route   GET api/tasks/project/:projectId
 router.get('/project/:projectId', auth, async (req, res) => {
   try {
-    const tasks = await Task.find({ project: req.params.projectId })
+    // Enforce visibility: Admins and project creators/managers can view all tasks.
+    // Regular employees can only view tasks assigned to them.
+    let currentUserId = null;
+    if (req.user) {
+      if (req.user.user && req.user.user.id) currentUserId = req.user.user.id;
+      else if (typeof req.user === 'object') currentUserId = req.user.id || req.user._id;
+      else currentUserId = req.user;
+    }
+
+    const currentUser = currentUserId ? await (require('../models/User')).findById(currentUserId) : null;
+    const project = await (require('../models/Project')).findById(req.params.projectId);
+
+    if (!project) return res.status(404).json({ message: 'Project not found.' });
+
+    let query = { project: req.params.projectId };
+
+    if (!currentUser) {
+      return res.status(401).json({ message: 'User not authenticated.' });
+    }
+
+    // Admins see everything
+    if (currentUser.role === 'Admin') {
+      // no additional filter
+    } else if (currentUser.role === 'Manager') {
+      // Managers can view tasks for projects they created OR projects in their team
+      if (String(project.createdBy) !== String(currentUserId) && String(project.teamCategory || '').toLowerCase() !== String(currentUser.team || '').toLowerCase()) {
+        // If manager is not related to this project, restrict to assigned tasks only
+        query.assignedTo = currentUserId;
+      }
+    } else {
+      // Employees: only tasks assigned to them
+      query.assignedTo = currentUserId;
+    }
+
+    const tasks = await Task.find(query)
       .populate('assignedTo', 'name email role')
       .sort({ createdAt: -1 });
     return res.json(tasks);
