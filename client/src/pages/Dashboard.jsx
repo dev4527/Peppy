@@ -184,14 +184,43 @@ function Dashboard() {
     }
 
     setLoading(true);
+    
+    // ⚡ OPTIMISTIC UI UPDATE: Show task immediately
+    const optimisticTask = {
+      _id: `temp_${Date.now()}`,
+      title: title.trim(),
+      description: description.trim() || '',
+      priority: priority || 'Medium',
+      project: finalProjectID,
+      dueDate: dueDate || null,
+      assignedTo: assignedTo || null,
+      recurrenceType: recurrenceType || 'One-time task',
+      status: 'To Do',
+      createdAt: new Date().toISOString()
+    };
+    
+    // Add optimistic task to UI immediately
+    setTasks(prev => [optimisticTask, ...prev]);
+    
     try {
-      await api.post('/api/tasks', { title, description, priority, project: finalProjectID, dueDate, assignedTo: assignedTo || null, recurrenceType });
+      // Send to server
+      const response = await api.post('/api/tasks', { title, description, priority, project: finalProjectID, dueDate, assignedTo: assignedTo || null, recurrenceType });
+      
+      // Replace optimistic task with real one
+      setTasks(prev => prev.map(t => t._id === optimisticTask._id ? response.data : t));
+      
+      // Reset form immediately for better UX
       setTitle(''); setDescription(''); setPriority('Medium'); setDueDate(''); setAssignedTo(''); setRecurrenceType('One-time task');
       setShowModal(false);
-      fetchDashboardTasks();
+      
+      // Refresh in background without blocking UI
+      setTimeout(() => fetchDashboardTasks(), 500);
+      
       alert("📋 Task card successfully deployed into work lanes board!");
     } catch (err) { 
       console.error(err);
+      // Remove optimistic task on failure
+      setTasks(prev => prev.filter(t => t._id !== optimisticTask._id));
       alert(err.response?.data?.message || "Failed to deploy new task item card.");
     } finally { setLoading(false); }
   };
@@ -353,7 +382,7 @@ function Dashboard() {
 
         <div className="flex-1 overflow-auto bg-[#f9fafb] dark:bg-[#1e1f21] transition-colors duration-300">
           {viewMode === 'project_home' ? (
-            <HomePortal tasks={tasks} projects={projects} setCurrentProject={setCurrentProject} setShowMyTasks={setShowMyTasks} setViewMode={setViewMode} userName={user?.name} theme={theme} />
+            <HomePortal tasks={tasks} projects={projects} setCurrentProject={setCurrentProject} setShowMyTasks={setShowMyTasks} setViewMode={setViewMode} userName={user?.name} theme={theme} onSelectTask={setSelectedTask} onRefresh={fetchDashboardTasks} />
           ) : viewMode === 'chat_room' ? (
             <div className="p-8"><ChatView theme={theme} /></div>
           ) : viewMode === 'calendar' ? (

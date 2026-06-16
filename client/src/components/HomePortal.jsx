@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
+import api from '../utils/api';
 
-function HomePortal({ tasks = [], projects = [], setCurrentProject, setShowMyTasks, setViewMode, userName }) {
+function HomePortal({ tasks = [], projects = [], setCurrentProject, setShowMyTasks, setViewMode, userName, onSelectTask, onRefresh }) {
   const [weekFilter, setWeekFilter] = useState(false);
+  const [advancingTaskId, setAdvancingTaskId] = useState(null);
 
   // 📊 CALCULATE ACTUAL LIVE COMPLETED TASKS COUNT DIRECT FROM DB
   const completedCount = tasks.filter(t => t.status === 'Completed').length;
@@ -30,6 +32,31 @@ function HomePortal({ tasks = [], projects = [], setCurrentProject, setShowMyTas
     if (typeof setCurrentProject === 'function') setCurrentProject(null);
   };
 
+  // 🎯 Phase progression - advance task through phases
+  const getNextPhase = (currentStatus) => {
+    const phases = ['To Do', 'In Progress', 'Review', 'Completed'];
+    const currentIndex = phases.indexOf(currentStatus);
+    return currentIndex < phases.length - 1 ? phases[currentIndex + 1] : currentStatus;
+  };
+
+  // 🚀 Advance task phase handler
+  const handleAdvancePhase = async (e, taskId, currentStatus) => {
+    e.stopPropagation();
+    
+    const nextStatus = getNextPhase(currentStatus);
+    if (nextStatus === currentStatus) return; // Already at last phase
+    
+    setAdvancingTaskId(taskId);
+    try {
+      await api.put(`/api/tasks/${taskId}`, { status: nextStatus });
+      if (typeof onRefresh === 'function') onRefresh();
+    } catch (err) {
+      console.error('Failed to advance task phase:', err);
+    } finally {
+      setAdvancingTaskId(null);
+    }
+  };
+
   // Filter tasks based on "My Week" selection (Due within next 7 days)
   const getFilteredTasks = () => {
     if (!weekFilter) return tasks;
@@ -45,7 +72,27 @@ function HomePortal({ tasks = [], projects = [], setCurrentProject, setShowMyTas
     });
   };
 
-  const displayedTasks = getFilteredTasks().filter(t => t.status !== 'Completed').slice(0, 5);
+  // 🎯 Get status color for phase display
+  const getStatusColor = (status) => {
+    switch(status) {
+      case 'To Do': return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
+      case 'In Progress': return 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400';
+      case 'Review': return 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400';
+      case 'Completed': return 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400';
+      default: return 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
+    }
+  };
+
+  const getPriorityColor = (priority) => {
+    switch(priority) {
+      case 'Low': return 'text-slate-500';
+      case 'Medium': return 'text-amber-500';
+      case 'High': return 'text-red-500';
+      default: return 'text-slate-500';
+    }
+  };
+
+  const displayedTasks = getFilteredTasks().filter(t => t.status !== 'Completed');
 
   return (
     <div className="p-8 space-y-8 animate-fade-in text-sans">
@@ -90,24 +137,58 @@ function HomePortal({ tasks = [], projects = [], setCurrentProject, setShowMyTas
       {/* 📊 DUAL GRID ARTIFACTS INTERFACE */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
         
-        {/* LEFT COLUMN: ACTIVE ASSIGNED TASKS MATRIX */}
+        {/* LEFT COLUMN: ALL ACTIVE TASKS BOARD (EXPANDED) */}
         <div className="lg:col-span-3 bg-white dark:bg-[#252628]/60 border border-slate-200 dark:border-[#333538] rounded-2xl p-6 shadow-sm space-y-4 transition-colors duration-300">
           <div className="text-left">
-            <h3 className="font-bold text-base text-slate-900 dark:text-white">Tasks assigned to me</h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Track progress across your explicit corporate pipeline backlog artifacts.</p>
+            <h3 className="font-bold text-base text-slate-900 dark:text-white">Active Tasks Pipeline</h3>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Track all pending and in-progress tasks across projects.</p>
           </div>
 
-          <div className="divide-y divide-slate-100 dark:divide-[#333538]/40 space-y-2">
+          <div className="max-h-96 overflow-y-auto divide-y divide-slate-100 dark:divide-[#333538]/40 space-y-2 custom-scrollbar pr-2">
             {displayedTasks.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 dark:text-slate-500 italic text-xs">No pending tasks found for your profile deck.</div>
+              <div className="p-8 text-center text-slate-400 dark:text-slate-500 italic text-xs">No pending tasks found. Great work! 🎉</div>
             ) : (
               displayedTasks.map((task) => (
-                <div key={task._id} className="pt-3 flex justify-between items-center group cursor-pointer">
-                  <div className="flex items-center gap-3">
-                    <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-red-500 dark:group-hover:text-red-400 transition">{task.title}</p>
+                <div 
+                  key={task._id} 
+                  onClick={() => { if (typeof onSelectTask === 'function') onSelectTask(task); }}
+                  className="pt-3 flex justify-between items-start gap-3 group cursor-pointer hover:bg-slate-50 dark:hover:bg-[#1e1f21] p-3 -mx-3 rounded-lg transition"
+                >
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${
+                      task.status === 'To Do' ? 'bg-slate-400' :
+                      task.status === 'In Progress' ? 'bg-blue-500' :
+                      task.status === 'Review' ? 'bg-amber-500' :
+                      'bg-emerald-500'
+                    }`}></span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 group-hover:text-red-500 dark:group-hover:text-red-400 transition truncate">{task.title}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <span className={`text-[9px] px-2 py-0.5 rounded-md font-bold ${getStatusColor(task.status)} uppercase`}>
+                          {task.status}
+                        </span>
+                        {task.priority && (
+                          <span className={`text-[9px] font-bold uppercase tracking-wider ${getPriorityColor(task.priority)}`}>
+                            {task.priority === 'High' ? '🔴' : task.priority === 'Medium' ? '🟡' : '🟢'} {task.priority}
+                          </span>
+                        )}
+                        {task.dueDate && (
+                          <span className="text-[9px] text-slate-400 dark:text-slate-500">
+                            📅 {new Date(task.dueDate).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] px-2.5 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-lg font-black uppercase tracking-wider">{task.status}</span>
+                  {task.status !== 'Completed' && (
+                    <button
+                      onClick={(e) => handleAdvancePhase(e, task._id, task.status)}
+                      disabled={advancingTaskId === task._id}
+                      className="shrink-0 px-2 py-1 text-[9px] font-bold bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 rounded-md transition disabled:opacity-50 uppercase"
+                    >
+                      {advancingTaskId === task._id ? '⏳' : '→ Advance'}
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -118,7 +199,7 @@ function HomePortal({ tasks = [], projects = [], setCurrentProject, setShowMyTas
             onClick={handleOpenRegistry}
             className="w-full mt-2 bg-slate-50 dark:bg-[#1e1f21] hover:bg-slate-100 dark:hover:bg-[#2a2b2d] border border-slate-200 dark:border-[#333538] hover:border-slate-300 dark:hover:border-[#45474a] text-slate-700 dark:text-slate-200 font-bold text-xs uppercase tracking-wider py-3 rounded-xl transition cursor-pointer text-center block shadow-sm"
           >
-            Open Complete Personal Backlog Registry
+            View All Tasks in Detail
           </button>
         </div>
 
