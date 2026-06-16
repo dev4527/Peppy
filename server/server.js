@@ -37,7 +37,6 @@ if (!fs.existsSync(uploadsDir)){
 
 // Global Core Middlewares
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 app.use(express.json());
 
 // ✅ EXPOSE UPLOADS AS REUSEABLE STATIC ASSET GAP
