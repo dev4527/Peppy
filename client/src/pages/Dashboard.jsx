@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useContext } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useContext } from 'react';
+import api, { API_BASE } from '../utils/api';
 import { io } from 'socket.io-client';
 import { AuthContext } from '../context/AuthContext';
 import Sidebar from '../components/Sidebar';
@@ -11,7 +11,7 @@ import ProfileView from '../components/ProfileView';
 import FloatingAI from '../components/FloatingAI'; 
 import ChatView from '../components/ChatView'; 
 
-const socket = io('https://peppy-we0g.onrender.com');
+const socket = io(API_BASE || undefined);
 
 function Dashboard() {
   const { user, logout } = useContext(AuthContext);
@@ -51,7 +51,6 @@ function Dashboard() {
   // 🎯 ACTIVE SELECTED TASK STATE (Drawer Matrix)
   const [selectedTask, setSelectedTask] = useState(null);
 
-  const columns = ['To Do', 'In Progress', 'Review', 'Completed'];
   const intervalSchedules = ['Daily task', 'Weekly task', 'Monthly task', 'Quarterly task', 'One-time task'];
 
   // 🌓 THEME SYNCHRONIZATION RUNTIME EFFECT
@@ -66,10 +65,9 @@ function Dashboard() {
   // 🔄 FETCH ALL WORKSPACE NOTIFICATIONS
   const fetchMyAlerts = async () => {
     try {
-      const token = localStorage.getItem('peppy_token');
-      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
-      const res = await axios.get('https://peppy-we0g.onrender.com/api/notifications', { headers });
-      setNotifications(res.data || []);
+      await api.get('/api/notifications').then((res) => {
+        setNotifications(res.data || []);
+      });
     } catch (err) {
       console.error('Failed to pull system notification matrix:', err);
     }
@@ -81,10 +79,9 @@ function Dashboard() {
     if (!token) return;
 
     try {
-      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
       const [membersRes, projectsRes] = await Promise.all([
-        axios.get('https://peppy-we0g.onrender.com/api/auth/users', { headers }),
-        axios.get('https://peppy-we0g.onrender.com/api/projects', { headers })
+        api.get('/api/auth/users'),
+        api.get('/api/projects')
       ]);
       
       setTeamMembers(membersRes.data || []);
@@ -103,17 +100,16 @@ function Dashboard() {
     if (!token) return;
 
     try {
-      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
       let freshDataDeck = [];
 
       if (showMyTasks) {
-        const res = await axios.get('https://peppy-we0g.onrender.com/api/tasks/my-tasks', { headers });
+        const res = await api.get('/api/tasks/my-tasks');
         freshDataDeck = res.data || [];
       } else if (currentProject?._id) {
-        const res = await axios.get(`https://peppy-we0g.onrender.com/api/tasks/project/${currentProject._id}`, { headers });
+        const res = await api.get(`/api/tasks/project/${currentProject._id}`);
         freshDataDeck = res.data || [];
       } else {
-        const res = await axios.get('https://peppy-we0g.onrender.com/api/tasks/my-tasks', { headers });
+        const res = await api.get('/api/tasks/my-tasks');
         freshDataDeck = res.data || [];
       }
       
@@ -124,7 +120,7 @@ function Dashboard() {
         if (currentlyInspectedTask) {
           setSelectedTask(currentlyInspectedTask);
         } else {
-          const singleTaskRes = await axios.get(`https://peppy-we0g.onrender.com/api/tasks/${selectedTask._id}`, { headers });
+          const singleTaskRes = await api.get(`/api/tasks/${selectedTask._id}`);
           if (singleTaskRes.data) { setSelectedTask(singleTaskRes.data); }
         }
       }
@@ -148,7 +144,7 @@ function Dashboard() {
     try {
       const token = localStorage.getItem('peppy_token');
       const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
-      await axios.put(`https://peppy-we0g.onrender.com/api/notifications/${id}/read`, {}, { headers });
+      await api.put(`/api/notifications/${id}/read`, {});
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
     } catch (err) {
       console.error('Failed to update alert state:', err);
@@ -189,13 +185,7 @@ function Dashboard() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('peppy_token');
-      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
-
-      await axios.post('https://peppy-we0g.onrender.com/api/tasks', 
-        { title, description, priority, project: finalProjectID, dueDate, assignedTo: assignedTo || null, recurrenceType },
-        { headers }
-      );
+      await api.post('/api/tasks', { title, description, priority, project: finalProjectID, dueDate, assignedTo: assignedTo || null, recurrenceType });
       setTitle(''); setDescription(''); setPriority('Medium'); setDueDate(''); setAssignedTo(''); setRecurrenceType('One-time task');
       setShowModal(false);
       fetchDashboardTasks();
@@ -213,17 +203,14 @@ function Dashboard() {
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('peppy_token');
-      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
-      
       const targetedTeamCategory = user?.role === 'Admin' ? 'Technical Team' : (user?.team || 'Technical Team');
       const currentUserId = user?.id || user?._id || localStorage.getItem('peppy_userId');
 
       // 1. Post project card layout setup
-      const projectResponse = await axios.post('https://peppy-we0g.onrender.com/api/projects', {
+      const projectResponse = await api.post('/api/projects', {
         name: newProjectName.trim(),
         teamCategory: targetedTeamCategory
-      }, { headers });
+      });
 
       // Condition deployment checks
       if (createSyncGroup) {
@@ -233,13 +220,13 @@ function Dashboard() {
           finalGroupMembers.push(String(currentUserId));
         }
 
-        await axios.post('https://peppy-we0g.onrender.com/api/chats/groups', {
+        await api.post('/api/chats/groups', {
           name: `${newProjectName.trim()} Sync Group`,
           description: `Official communications broadcast deck for ${newProjectName.trim()} sprint roadmap.`,
           members: finalGroupMembers, 
           teamScope: targetedTeamCategory,
           project: projectResponse.data?._id || null
-        }, { headers });
+        });
 
         alert(`🚀 Project Board and matching WhatsApp Channel deployed together successfully!`);
       } else {
@@ -269,9 +256,7 @@ function Dashboard() {
 
     setTasks(prevTasks => prevTasks.map(t => t._id === taskId ? { ...t, status: nextStatus } : t));
     try {
-      const token = localStorage.getItem('peppy_token');
-      const headers = { 'Authorization': `Bearer ${token}`, 'x-auth-token': token };
-      await axios.put(`https://peppy-we0g.onrender.com/api/tasks/${taskId}`, { status: nextStatus }, { headers });
+      await api.put(`/api/tasks/${taskId}`, { status: nextStatus });
       fetchDashboardTasks();
     } catch (err) { console.error(err); fetchDashboardTasks(); }
   };

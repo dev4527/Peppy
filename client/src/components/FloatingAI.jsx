@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 
 function FloatingAI({ currentProjectId }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,11 +26,7 @@ function FloatingAI({ currentProjectId }) {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('peppy_token');
-      const res = await axios.post('https://peppy-we0g.onrender.com/api/ai/chat', 
-        { message: userText, projectId: currentProjectId || null },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await api.post('/api/ai/chat', { message: userText, projectId: currentProjectId || null });
 
       // Append clean English response from backend routing cluster
       setMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);

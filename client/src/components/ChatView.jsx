@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useRef, useContext } from 'react';
+import api, { API_BASE } from '../utils/api';
 import { io } from 'socket.io-client';
 import { AuthContext } from '../context/AuthContext';
 
-const socket = io('https://peppy-we0g.onrender.com');
+const socket = io(API_BASE || undefined);
 
 function ChatView() {
   const { user } = useContext(AuthContext);
@@ -44,17 +44,9 @@ function ChatView() {
   // 📂 FETCH ALL EMPLOYEES GLOBALLY & ALL SYNCED CHAT GROUPS
   const fetchInitialData = async () => {
     try {
-      const token = localStorage.getItem('peppy_token');
-      if (!token) return;
-
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
-
       const [usersRes, groupsRes] = await Promise.all([
-        axios.get('https://peppy-we0g.onrender.com/api/auth/users', { headers }),
-        axios.get('https://peppy-we0g.onrender.com/api/chats/groups', { headers })
+        api.get('/api/auth/users'),
+        api.get('/api/chats/groups')
       ]);
 
       const currentUserId = user?.id || user?._id;
@@ -86,19 +78,11 @@ function ChatView() {
     const fetchHistory = async () => {
       if (!activeChatTarget) return;
       try {
-        const token = localStorage.getItem('peppy_token');
-        const headers = { 
-          'Authorization': `Bearer ${token}`,
-          'x-auth-token': token 
-        };
-
         // ⭐ BROAD BYPASS: Checking if it's a group conversation by comparing active Tab type
         const isGroup = activeTab === 'groups';
-        const endpoint = isGroup 
-          ? `https://peppy-we0g.onrender.com/api/chats/group/history/${activeChatTarget._id}`
-          : `https://peppy-we0g.onrender.com/api/chats/history/${activeChatTarget._id}`;
+        const endpoint = isGroup ? `/api/chats/group/history/${activeChatTarget._id}` : `/api/chats/history/${activeChatTarget._id}`;
 
-        const res = await axios.get(endpoint, { headers });
+        const res = await api.get(endpoint);
         setMessages(res.data || []);
       } catch (err) {
         console.error('❌ Chat thread load breakdown:', err);
@@ -139,19 +123,9 @@ function ChatView() {
     if (!newGroupName.trim()) return;
 
     try {
-      const token = localStorage.getItem('peppy_token');
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
       const targetedTeamCategory = user?.role === 'Admin' ? 'Technical Team' : (user?.team || 'Technical Team');
 
-      const res = await axios.post('https://peppy-we0g.onrender.com/api/chats/groups', {
-        name: newGroupName.trim(),
-        description: newGroupDesc.trim(),
-        teamScope: targetedTeamCategory,
-        members: selectedMembers
-      }, { headers });
+      const res = await api.post('/api/chats/groups', { name: newGroupName.trim(), description: newGroupDesc.trim(), teamScope: targetedTeamCategory, members: selectedMembers });
 
       setChatGroups(prev => [res.data, ...prev]);
       socket.emit('join_chat_groups', [res.data._id]);
@@ -174,44 +148,19 @@ function ChatView() {
     const currentUserId = user?.id || user?._id;
     if (!currentUserId) return;
 
-    const token = localStorage.getItem('peppy_token');
     const isGroupChat = activeTab === 'groups';
-    const headers = { 
-      'Authorization': `Bearer ${token}`,
-      'x-auth-token': token 
-    };
 
     try {
       if (isGroupChat) {
-        const res = await axios.post('https://peppy-we0g.onrender.com/api/chats/group/send', {
-          groupId: activeChatTarget._id,
-          text: typedMessage.trim()
-        }, { headers });
+        const res = await api.post('/api/chats/group/send', { groupId: activeChatTarget._id, text: typedMessage.trim() });
 
-        socket.emit('send_group_message', {
-          groupId: activeChatTarget._id,
-          senderId: currentUserId,
-          group: activeChatTarget._id,
-          text: typedMessage.trim(),
-          sender: { _id: currentUserId, name: user.name || 'Operator' },
-          _id: res.data._id,
-          createdAt: res.data.createdAt
-        });
+        socket.emit('send_group_message', { groupId: activeChatTarget._id, senderId: currentUserId, group: activeChatTarget._id, text: typedMessage.trim(), sender: { _id: currentUserId, name: user.name || 'Operator' }, _id: res.data._id, createdAt: res.data.createdAt });
 
         setMessages(prev => [...prev, res.data]);
       } else {
-        const res = await axios.post('https://peppy-we0g.onrender.com/api/chats/send', 
-          { receiverId: activeChatTarget._id, text: typedMessage.trim() },
-          { headers }
-        );
+        const res = await api.post('/api/chats/send', { receiverId: activeChatTarget._id, text: typedMessage.trim() });
 
-        socket.emit('send_direct_message', {
-          senderId: currentUserId,
-          receiverId: activeChatTarget._id,
-          text: typedMessage.trim(),
-          _id: res.data._id,
-          createdAt: res.data.createdAt
-        });
+        socket.emit('send_direct_message', { senderId: currentUserId, receiverId: activeChatTarget._id, text: typedMessage.trim(), _id: res.data._id, createdAt: res.data.createdAt });
 
         setMessages(prev => [...prev, res.data]);
       }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api, { API_BASE } from '../utils/api';
 
 function TaskDrawer({ task, onClose, onRefresh }) {
   const [commentText, setCommentText] = useState('');
@@ -47,11 +47,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
     setCommentText('');
 
     try {
-      const token = localStorage.getItem('peppy_token');
-      const res = await axios.post(`https://peppy-we0g.onrender.com/api/tasks/${task._id}/comments`, 
-        { text: textToPost, userName: currentUserName },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await api.post(`/api/tasks/${task._id}/comments`, { text: textToPost, userName: currentUserName });
       
       if (res.data && res.data.comments) {
         setLocalComments(res.data.comments);
@@ -80,16 +76,9 @@ function TaskDrawer({ task, onClose, onRefresh }) {
     formData.append('attachment', selectedFile); // Links directly to Multer stream destination field
 
     try {
-      const token = localStorage.getItem('peppy_token');
-      
       console.log(`Streaming binary tracking blocks to server: /api/tasks/${task._id}/upload`);
       
-      const res = await axios.post(`https://peppy-we0g.onrender.com/api/tasks/${task._id}/upload`, formData, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data' // Informs server engine to expect raw files binary stream
-        }
-      });
+      const res = await api.post(`/api/tasks/${task._id}/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       
       // Flush file input field memory logs instantly
       setSelectedFile(null);
@@ -123,11 +112,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
     setSubtaskTitle('');
 
     try {
-      const token = localStorage.getItem('peppy_token');
-      const res = await axios.post(`https://peppy-we0g.onrender.com/api/tasks/${task._id}/subtasks`, 
-        { title: subTitleText },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const res = await api.post(`/api/tasks/${task._id}/subtasks`, { title: subTitleText });
       if (res.data && res.data.subtasks) {
         setLocalSubtasks(res.data.subtasks);
       }
@@ -140,10 +125,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
   const handleToggleSubtask = async (subId) => {
     try {
       setLocalSubtasks(prev => prev.map(st => st._id === subId ? { ...st, isCompleted: !st.isCompleted } : st));
-      const token = localStorage.getItem('peppy_token');
-      const res = await axios.put(`https://peppy-we0g.onrender.com/api/tasks/${task._id}/subtasks/${subId}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await api.put(`/api/tasks/${task._id}/subtasks/${subId}`, {});
       if (res.data && res.data.subtasks) {
         setLocalSubtasks(res.data.subtasks);
       }
@@ -209,7 +191,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
               <div key={file._id || idx} className="flex justify-between items-center bg-[#252628] border border-[#333538] p-2.5 rounded-xl">
                 <span className="text-slate-300 font-medium truncate max-w-[180px]">📎 {file.fileName}</span>
                 <a 
-                  href={`https://peppy-we0g.onrender.com${file.filePath}`} 
+                  href={`${API_BASE}${file.filePath}`} 
                   target="_blank" 
                   rel="noreferrer"
                   className="text-red-400 hover:text-red-300 font-bold text-[10px] uppercase border border-red-500/20 px-2 py-0.5 rounded-lg bg-red-500/5 transition"
@@ -234,7 +216,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
                 if (!linkUrl || !linkUrl.trim()) return alert('Enter a URL');
                 try {
                   const token = localStorage.getItem('peppy_token');
-                  const res = await axios.post(`https://peppy-we0g.onrender.com/api/tasks/${task._id}/attach-link`, { title: linkTitle, url: linkUrl }, { headers: { Authorization: `Bearer ${token}` } });
+                  const res = await api.post(`/api/tasks/${task._id}/attach-link`, { title: linkTitle, url: linkUrl });
                   if (res.data && res.data.links) {
                     setLocalAttachments(prev => prev); // keep attachments
                     // refresh via provided callback

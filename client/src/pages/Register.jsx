@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../utils/api';
 import { useNavigate, Link } from 'react-router-dom';
 
 function Register() {
@@ -24,13 +24,7 @@ function Register() {
 
     try {
       // 🚀 Dispatching comprehensive corporate onboarding parameters straight to backend node
-      await axios.post('https://peppy-we0g.onrender.com/api/auth/register', { 
-        name, 
-        email, 
-        password, 
-        role,
-        managerTarget: role === 'Employee' ? managerTarget : undefined
-      });
+      await api.post('/api/auth/register', { name, email, password, role, managerTarget: role === 'Employee' ? managerTarget : undefined });
       
       setSuccess(true);
       setTimeout(() => {

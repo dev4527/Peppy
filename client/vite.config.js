@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://peppy-we0g.onrender.com', // Tumhara live Render backend link
+        target: 'http://localhost:5000',
         changeOrigin: true,
         secure: false,
       }

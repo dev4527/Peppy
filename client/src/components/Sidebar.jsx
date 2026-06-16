@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useContext } from 'react';
-import axios from 'axios';
+import { useState, useEffect, useContext } from 'react';
+import api from '../utils/api';
 import { AuthContext } from '../context/AuthContext';
 
 // ⭐ PROP UNLOCKED: Explicitly receiving the centralized 'projects' array from Dashboard context parent wrapper
@@ -22,13 +22,7 @@ function Sidebar({
   // 📂 FETCH DYNAMIC TEAMS STRUCTURE METADATA ONLY
   const fetchGlobalSidebarData = async () => {
     try {
-      const token = localStorage.getItem('peppy_token');
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
-      
-      const teamRes = await axios.get('https://peppy-we0g.onrender.com/api/teams', { headers });
+      const teamRes = await api.get('/api/teams');
       setTeams(teamRes.data || []);
     } catch (err) {
       console.error('Sidebar team list aggregation pull fail:', err);
@@ -46,15 +40,7 @@ function Sidebar({
     if (!newTeamName.trim()) return;
     setLoading(true);
     try {
-      const token = localStorage.getItem('peppy_token');
-      const headers = { 
-        'Authorization': `Bearer ${token}`,
-        'x-auth-token': token 
-      };
-      await axios.post('https://peppy-we0g.onrender.com/api/teams', 
-        { name: newTeamName.trim() },
-        { headers }
-      );
+      await api.post('/api/teams', { name: newTeamName.trim() });
       setNewTeamName('');
       setShowTeamModal(false);
       await fetchGlobalSidebarData();
