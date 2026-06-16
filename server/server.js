@@ -13,10 +13,17 @@ const app = express();
 const server = http.createServer(app);
 
 // 🔌 INITIALIZE WEBSOCKET PROTOCOL ENGINE WITH EXTENDED CORS RULES
+const corsOptions = {
+  origin: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-auth-token"],
+  credentials: true
+};
+
 const io = new Server(server, {
   cors: {
-    origin: "*", // 🚀 Unlocked for Vercel production frontend
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true
   }
 });
@@ -29,25 +36,36 @@ if (!fs.existsSync(uploadsDir)){
 }
 
 // Global Core Middlewares
-app.use(cors({
-  origin: "*", // 🚀 Unlocked global access route for cross-origin handshakes
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  credentials: true
-}));
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 // ✅ EXPOSE UPLOADS AS REUSEABLE STATIC ASSET GAP
 app.use('/uploads', express.static(uploadsDir));
 
 // 📬 SETUP NODEMAILER EMAIL HANDSHAKE ENGINE WITH EXPLICIT SMTP POOL
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // Upgraded TLS handshake mechanism for production cloud
+const smtpConfig = {
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
+  }
+};
+
+if (process.env.EMAIL_SERVICE) {
+  smtpConfig.service = process.env.EMAIL_SERVICE;
+} else {
+  smtpConfig.host = process.env.SMTP_HOST || 'smtp.gmail.com';
+  smtpConfig.port = Number(process.env.SMTP_PORT || 465);
+  smtpConfig.secure = process.env.SMTP_SECURE !== 'false';
+}
+
+const transporter = nodemailer.createTransport(smtpConfig);
+
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('❌ Email transporter verification failed:', error.message || error);
+  } else {
+    console.log('📬 Email transporter verified and ready to send messages.');
   }
 });
 

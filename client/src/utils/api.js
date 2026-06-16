@@ -1,9 +1,12 @@
 import axios from 'axios';
 
-export const API_BASE = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+export const API_BASE = import.meta.env.VITE_API_URL || 'https://peppy-we0g.onrender.com';
 
 const api = axios.create({
-  baseURL: API_BASE
+  baseURL: API_BASE,
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
 
 // Attach auth token automatically for all requests if present

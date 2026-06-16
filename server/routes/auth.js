@@ -12,13 +12,19 @@ const auth = require('../middleware/authMiddleware');
 // @route    POST api/auth/register
 router.post('/register', async (req, res) => {
   const { name, email, password, role, team, managerId } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ message: 'Name, email, and password are required.' });
+  }
+
   try {
-    let user = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    let user = await User.findOne({ email: normalizedEmail });
     if (user) return res.status(400).json({ message: 'User already exists.' });
 
     user = new User({
       name: name.trim(),
-      email: email.toLowerCase().trim(),
+      email: normalizedEmail,
       password,
       role: role || 'Employee',
       team: role === 'Admin' ? 'Global Command Hub' : (team || 'Technical Team'),
@@ -43,8 +49,13 @@ router.post('/register', async (req, res) => {
 // @route    POST api/auth/login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required.' });
+  }
+
   try {
-    let user = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    let user = await User.findOne({ email: normalizedEmail });
     if (!user) return res.status(400).json({ message: 'Invalid Credentials.' });
 
     const isMatch = await bcrypt.compare(password, user.password);
