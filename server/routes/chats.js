@@ -6,6 +6,18 @@ const Message = require('../models/Chat');
 const ChatGroup = require('../models/ChatGroup');
 const User = require('../models/User');
 const auth = require('../middleware/authMiddleware');
+const { loadCurrentUser, sameTeam } = require('../utils/accessControl');
+
+const canContactUser = (actor, target) => {
+  if (!actor || !target) return false;
+  if (actor.role === 'Admin') return true;
+  if (!sameTeam(actor.team, target.team)) return false;
+  if (actor.role === 'Manager') {
+    return String(target.manager) === String(actor._id) || target.role === 'Manager';
+  }
+  return String(actor.manager || '') === String(target.manager || '') ||
+    String(target.manager || '') === String(actor._id);
+};
 
 // ==========================================
 // 👤 EXISTING 1-ON-1 PRIVATE CHATS SECTION
@@ -30,6 +42,13 @@ router.get('/history/:userId', auth, async (req, res) => {
 
     if (!currentUserId) {
       return res.status(401).json({ message: 'User identity matrix context drop.' });
+    }
+    const [currentUser, targetUser] = await Promise.all([
+      User.findById(currentUserId),
+      User.findById(targetUserId)
+    ]);
+    if (!canContactUser(currentUser, targetUser)) {
+      return res.status(403).json({ message: 'This conversation is outside your reporting hierarchy.' });
     }
 
     // Fetch conversation thread chronological flow
@@ -70,6 +89,13 @@ router.post('/send', auth, async (req, res) => {
 
     if (!senderId) {
       return res.status(401).json({ message: 'Sender authentication context lost inside database pipeline wrapper.' });
+    }
+    const [currentUser, receiver] = await Promise.all([
+      User.findById(senderId),
+      User.findById(receiverId)
+    ]);
+    if (!canContactUser(currentUser, receiver)) {
+      return res.status(403).json({ message: 'This recipient is outside your reporting hierarchy.' });
     }
 
     const newMessage = new Message({
@@ -127,6 +153,13 @@ const handleGroupCreationStream = async (req, res) => {
     let finalMembersList = [];
     if (members) {
       finalMembersList = typeof members === 'string' ? JSON.parse(members) : [...members];
+    }
+    if (currentUser.role !== 'Admin' && finalMembersList.length > 0) {
+      const allowedMembers = await User.find({
+        _id: { $in: finalMembersList },
+        team: currentUser.team
+      }).select('_id');
+      finalMembersList = allowedMembers.map(member => member._id);
     }
     
     // Safety check: Creator ID is cleanly converted to string for matching check
@@ -230,6 +263,7 @@ router.get('/group/history/:groupId', auth, async (req, res) => {
     const group = await ChatGroup.findById(groupId);
 
     if (!group) return res.status(404).json({ message: 'Group chat channel target not found.' });
+    if (!currentUser) return res.status(401).json({ message: 'Authentication profile not found.' });
 
     // Hierarchy block check using normalized mapping boundaries
     if (currentUser.role !== 'Admin' && group.teamScope !== currentUser.team && !group.members.map(id => String(id)).includes(String(targetUserId))) {
@@ -265,6 +299,17 @@ router.post('/group/send', auth, async (req, res) => {
       } else {
         senderId = req.user;
       }
+    }
+
+    const currentUser = await User.findById(senderId);
+    const group = await ChatGroup.findById(groupId);
+    if (!currentUser || !group) {
+      return res.status(404).json({ message: 'Group or sender profile not found.' });
+    }
+    const isMember = group.members.map(id => String(id)).includes(String(senderId));
+    const canManageTeamGroup = currentUser.role === 'Manager' && sameTeam(group.teamScope, currentUser.team);
+    if (currentUser.role !== 'Admin' && !canManageTeamGroup && !isMember) {
+      return res.status(403).json({ message: 'You cannot post to this group.' });
     }
 
     const newMessage = new Message({

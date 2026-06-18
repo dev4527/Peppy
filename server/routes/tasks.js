@@ -5,7 +5,16 @@ const path = require('path');
 const fs = require('fs');
 const Task = require('../models/Task');
 const Notification = require('../models/Notification');
+const Project = require('../models/Project');
 const auth = require('../middleware/authMiddleware');
+const {
+  loadCurrentUser,
+  canManageProject,
+  canViewProject,
+  canViewTask,
+  canEditTask,
+  canAssignUser
+} = require('../utils/accessControl');
 
 // 📁 ------------------------------------------------------------------
 // 🚨 MULTER DISK STORAGE CONFIGURATION ENGINE FOR UNIVERSAL ATTACHMENTS
@@ -42,18 +51,30 @@ const upload = multer({
 // @route   GET api/tasks/project/:projectId
 router.get('/dashboard', auth, async (req, res) => {
   try {
-    const userId = req.user?.user?.id || req.user?.id || req.user?._id || req.user;
+    const currentUser = await loadCurrentUser(req);
 
-    if (!userId) {
+    if (!currentUser) {
       return res.status(401).json({ message: 'User verification mismatch during dashboard query.' });
     }
 
-    const dashboardTasks = await Task.find({
-      $or: [
-        { assignedTo: userId },
-        { createdBy: userId }
-      ]
-    })
+    let query;
+    if (currentUser.role === 'Admin') {
+      query = {};
+    } else if (currentUser.role === 'Manager') {
+      const projects = await Project.find({
+        teamCategory: { $regex: new RegExp(`^${currentUser.team.trim()}$`, 'i') }
+      }).select('_id');
+      query = { project: { $in: projects.map(project => project._id) } };
+    } else {
+      query = {
+        $or: [
+          { assignedTo: currentUser._id },
+          { createdBy: currentUser._id }
+        ]
+      };
+    }
+
+    const dashboardTasks = await Task.find(query)
       .populate('project', 'name teamCategory')
       .populate('assignedTo', 'name email role')
       .sort({ createdAt: -1 });
@@ -76,8 +97,8 @@ router.get('/project/:projectId', auth, async (req, res) => {
       else currentUserId = req.user;
     }
 
-    const currentUser = currentUserId ? await (require('../models/User')).findById(currentUserId) : null;
-    const project = await (require('../models/Project')).findById(req.params.projectId);
+    const currentUser = await loadCurrentUser(req);
+    const project = await Project.findById(req.params.projectId);
 
     if (!project) return res.status(404).json({ message: 'Project not found.' });
 
@@ -87,23 +108,14 @@ router.get('/project/:projectId', auth, async (req, res) => {
       return res.status(401).json({ message: 'User not authenticated.' });
     }
 
-    // Admins see everything
-    if (currentUser.role === 'Admin') {
-      // no additional filter
-    } else if (currentUser.role === 'Manager') {
-      // Managers can view tasks for projects they created OR projects in their team
-      if (String(project.createdBy) !== String(currentUserId) && String(project.teamCategory || '').toLowerCase() !== String(currentUser.team || '').toLowerCase()) {
-        // If manager is not related to this project, restrict to assigned tasks only
-        query.$or = [
-          { assignedTo: currentUserId },
-          { createdBy: currentUserId }
-        ];
-      }
-    } else {
-      // Employees: only tasks assigned to them
+    if (!canViewProject(currentUser, project)) {
+      return res.status(403).json({ message: 'You do not have access to this project.' });
+    }
+
+    if (currentUser.role !== 'Admin' && currentUser.role !== 'Manager') {
       query.$or = [
-        { assignedTo: currentUserId },
-        { createdBy: currentUserId }
+        { assignedTo: currentUser._id },
+        { createdBy: currentUser._id }
       ];
     }
 
@@ -157,6 +169,11 @@ router.get('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Task asset card target not found.' });
     }
 
+    const currentUser = await loadCurrentUser(req);
+    if (!await canViewTask(currentUser, task)) {
+      return res.status(403).json({ message: 'You do not have access to this task.' });
+    }
+
     return res.json(task);
   } catch (error) {
     console.error('Task details retrieval failure:', error);
@@ -166,21 +183,26 @@ router.get('/:id', auth, async (req, res) => {
 
 router.post('/', auth, async (req, res) => {
   try {
-    const { title, description, priority, project, dueDate, assignedTo, recurrenceType } = req.body;
+    const {
+      title, description, priority, project, dueDate, assignedTo, recurrenceType,
+      startDate, isMilestone, tags, estimatedMinutes
+    } = req.body;
 
     if (!title || !project) {
       return res.status(400).json({ message: 'Task Title and Project target mappings are highly mandatory.' });
     }
 
-    let creatorId = null;
-    if (req.user) {
-      if (req.user.user && req.user.user.id) {
-        creatorId = req.user.user.id;
-      } else if (typeof req.user === 'object') {
-        creatorId = req.user.id || req.user._id;
-      } else {
-        creatorId = req.user;
-      }
+    const currentUser = await loadCurrentUser(req);
+    const targetProject = await Project.findById(project);
+    if (!currentUser || !targetProject || !canViewProject(currentUser, targetProject)) {
+      return res.status(403).json({ message: 'You cannot create tasks in this project.' });
+    }
+
+    let finalAssignee = assignedTo || null;
+    if (currentUser.role !== 'Admin' && currentUser.role !== 'Manager') {
+      finalAssignee = currentUser._id;
+    } else if (!await canAssignUser(currentUser, finalAssignee)) {
+      return res.status(403).json({ message: 'You can only assign tasks within your reporting hierarchy.' });
     }
 
     const newTask = new Task({
@@ -189,9 +211,17 @@ router.post('/', auth, async (req, res) => {
       priority: priority || 'Medium',
       project,
       dueDate: dueDate || null,
-      assignedTo: assignedTo || null,
+      assignedTo: finalAssignee,
       recurrenceType: recurrenceType || 'One-time task',
-      createdBy: creatorId
+      createdBy: currentUser._id,
+      startDate: startDate || null,
+      isMilestone: Boolean(isMilestone),
+      tags: Array.isArray(tags) ? tags : String(tags || '').split(',').map(tag => tag.trim()).filter(Boolean),
+      estimatedMinutes: Number(estimatedMinutes) || 0,
+      activities: [{
+        text: 'created this task',
+        userName: currentUser.name
+      }]
     });
 
     await newTask.save();
@@ -202,7 +232,7 @@ router.post('/', auth, async (req, res) => {
     console.log(`🎯 New task successfully deployed: [${title}]`);
 
     // SAFE BOUNDARY: Only execute notification hooks if an assignee user exists
-    if (assignedTo) {
+    if (finalAssignee) {
       void (async () => {
         try {
         const populatedTask = await Task.findById(newTask._id).populate('assignedTo', 'name email');
@@ -212,8 +242,8 @@ router.post('/', auth, async (req, res) => {
 
           // 1. In-app Live Notification Database entry
           const taskAlert = new Notification({
-            recipient: assignedTo,
-            sender: creatorId,
+            recipient: finalAssignee,
+            sender: currentUser._id,
             title: '📋 New Task Assigned',
             message: `You have been assigned a new task: "${title.trim()}" in your project roadmap deck.`,
             type: 'task_assigned'
@@ -221,7 +251,7 @@ router.post('/', auth, async (req, res) => {
           await taskAlert.save();
 
           if (req.io) {
-            req.io.to(assignedTo).emit('new_notification', taskAlert);
+            req.io.to(String(finalAssignee)).emit('new_notification', taskAlert);
           }
 
           // 2. Production Mail Trigger using centralized req.transporter pipeline
@@ -264,10 +294,21 @@ router.post('/', auth, async (req, res) => {
 // @route   PUT api/tasks/:id
 router.put('/:id', auth, async (req, res) => {
   try {
-    const { title, description, priority, status, dueDate, assignedTo, recurrenceType } = req.body;
+    const {
+      title, description, priority, status, dueDate, assignedTo, recurrenceType,
+      startDate, isMilestone, tags, estimatedMinutes, actualMinutes
+    } = req.body;
     
     let task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ message: 'Task asset card target not found.' });
+
+    const currentUser = await loadCurrentUser(req);
+    if (!await canEditTask(currentUser, task)) {
+      return res.status(403).json({ message: 'You cannot edit this task.' });
+    }
+    if (assignedTo !== undefined && !await canAssignUser(currentUser, assignedTo)) {
+      return res.status(403).json({ message: 'You cannot assign this task outside your reporting hierarchy.' });
+    }
 
     if (title !== undefined) task.title = title.trim();
     if (description !== undefined) task.description = description.trim();
@@ -279,6 +320,19 @@ router.put('/:id', auth, async (req, res) => {
     if (dueDate !== undefined) task.dueDate = dueDate;
     if (assignedTo !== undefined) task.assignedTo = assignedTo || null;
     if (recurrenceType !== undefined) task.recurrenceType = recurrenceType;
+    if (startDate !== undefined) task.startDate = startDate || null;
+    if (isMilestone !== undefined) task.isMilestone = Boolean(isMilestone);
+    if (tags !== undefined) task.tags = Array.isArray(tags) ? tags : String(tags).split(',').map(tag => tag.trim()).filter(Boolean);
+    if (estimatedMinutes !== undefined) task.estimatedMinutes = Math.max(0, Number(estimatedMinutes) || 0);
+    if (actualMinutes !== undefined) task.actualMinutes = Math.max(0, Number(actualMinutes) || 0);
+
+    const changedFields = Object.keys(req.body).filter(key => req.body[key] !== undefined);
+    if (changedFields.length > 0) {
+      task.activities.push({
+        text: `updated ${changedFields.join(', ')}`,
+        userName: currentUser.name
+      });
+    }
 
     await task.save();
 
@@ -302,10 +356,18 @@ router.put('/:id', auth, async (req, res) => {
 router.post('/:id/comments', auth, async (req, res) => {
   try {
     const { text, userName } = req.body;
+
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: 'Comment text is required.' });
+    }
     
     const task = await Task.findById(req.params.id).populate('assignedTo', 'name email');
     if (!task) {
       return res.status(404).json({ message: 'Task configuration record missing.' });
+    }
+    const currentUser = await loadCurrentUser(req);
+    if (!await canEditTask(currentUser, task)) {
+      return res.status(403).json({ message: 'You cannot comment on this task.' });
     }
 
     const newComment = {
@@ -316,20 +378,26 @@ router.post('/:id/comments', auth, async (req, res) => {
 
     task.comments = task.comments || [];
     task.comments.push(newComment);
+    task.activities.push({
+      text: 'posted a comment',
+      userName: currentUser.name
+    });
     await task.save();
+
+    const failedEmails = [];
 
     if (req.transporter) {
       let targetList = [];
-      const emailRegex = /@([a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6})/g;
-      const detectedEmails = text.match(emailRegex);
+      const emailRegex = /@([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)/g;
+      const detectedEmails = Array.from(text.matchAll(emailRegex), match => match[1].toLowerCase());
 
       if (detectedEmails && detectedEmails.length > 0) {
-        targetList = detectedEmails.map(m => m.substring(1));
+        targetList = [...new Set(detectedEmails)];
       } else if (task.assignedTo && task.assignedTo.email) {
         targetList.push(task.assignedTo.email);
       }
 
-      targetList.forEach(async (email) => {
+      await Promise.all(targetList.map(async (email) => {
         const mailOptions = {
           from: `"Peppy Activity Stream" <${process.env.EMAIL_USER}>`,
           to: email,
@@ -351,16 +419,20 @@ router.post('/:id/comments', auth, async (req, res) => {
           await req.transporter.sendMail(mailOptions);
           console.log(`🚀 Discussion logs mail delivered smoothly to: ${email}`);
         } catch (mailError) {
+          failedEmails.push(email);
           console.error(`❌ Thread update failure tracking code loop for ${email}:`, mailError.message);
         }
-      });
+      }));
     }
 
     if (req.io) {
       req.io.to(task.project.toString()).emit('task_changed', { taskId: task._id });
     }
 
-    return res.json(task);
+    return res.json({
+      ...task.toObject(),
+      emailNotification: { failed: failedEmails }
+    });
   } catch (error) {
     console.error('❌ Comment post mutation crash:', error);
     return res.status(500).json({ message: 'Internal server task comment drop processing exception.' });
@@ -375,9 +447,17 @@ router.post('/:id/subtasks', auth, async (req, res) => {
 
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ message: 'Task asset match not found.' });
+    const currentUser = await loadCurrentUser(req);
+    if (!await canEditTask(currentUser, task)) {
+      return res.status(403).json({ message: 'You cannot add subtasks to this task.' });
+    }
 
     task.subtasks = task.subtasks || [];
     task.subtasks.push({ title: title.trim(), isCompleted: false });
+    task.activities.push({
+      text: `added subtask "${title.trim()}"`,
+      userName: currentUser.name
+    });
     await task.save();
 
     if (req.io) {
@@ -396,11 +476,19 @@ router.put('/:id/subtasks/:subId', auth, async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ message: 'Task record missing.' });
+    const currentUser = await loadCurrentUser(req);
+    if (!await canEditTask(currentUser, task)) {
+      return res.status(403).json({ message: 'You cannot update this subtask.' });
+    }
 
     const subtask = task.subtasks.id(req.params.subId);
     if (!subtask) return res.status(404).json({ message: 'Target subtask checkpoint block not found.' });
 
     subtask.isCompleted = !subtask.isCompleted;
+    task.activities.push({
+      text: `${subtask.isCompleted ? 'completed' : 'reopened'} subtask "${subtask.title}"`,
+      userName: currentUser.name
+    });
     await task.save();
 
     if (req.io) {
@@ -427,6 +515,10 @@ router.post('/:id/attach-file', auth, upload.single('file'), async (req, res) =>
 
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ message: 'Target task frame missing.' });
+    const currentUser = await loadCurrentUser(req);
+    if (!await canEditTask(currentUser, task)) {
+      return res.status(403).json({ message: 'You cannot attach files to this task.' });
+    }
 
     const filePayload = {
       fileName: req.file.originalname,
@@ -436,6 +528,10 @@ router.post('/:id/attach-file', auth, upload.single('file'), async (req, res) =>
 
     task.attachments = task.attachments || [];
     task.attachments.push(filePayload);
+    task.activities.push({
+      text: `attached file "${req.file.originalname}"`,
+      userName: currentUser.name
+    });
     await task.save();
 
     if (req.io) {
@@ -458,6 +554,10 @@ router.post('/:id/attach-link', auth, async (req, res) => {
 
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ message: 'Target task block configuration missing.' });
+    const currentUser = await loadCurrentUser(req);
+    if (!await canEditTask(currentUser, task)) {
+      return res.status(403).json({ message: 'You cannot attach links to this task.' });
+    }
 
     // Validate protocol structures safely to format an absolute hyperlink anchor
     const cleanHyperlink = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
@@ -466,6 +566,10 @@ router.post('/:id/attach-link', auth, async (req, res) => {
     task.links.push({
       title: title || 'Workspace Resource Link',
       url: cleanHyperlink
+    });
+    task.activities.push({
+      text: `attached link "${title || cleanHyperlink}"`,
+      userName: currentUser.name
     });
 
     await task.save();
@@ -487,11 +591,19 @@ router.post('/:id/upload', auth, upload.single('attachment'), async (req, res) =
     if (!req.file) return res.status(400).json({ message: 'File missing.' });
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ message: 'Task not found.' });
+    const currentUser = await loadCurrentUser(req);
+    if (!await canEditTask(currentUser, task)) {
+      return res.status(403).json({ message: 'You cannot upload files to this task.' });
+    }
 
     task.attachments.push({
       fileName: req.file.originalname,
       filePath: `/uploads/${req.file.filename}`,
       mimeType: req.file.mimetype
+    });
+    task.activities.push({
+      text: `attached file "${req.file.originalname}"`,
+      userName: currentUser.name
     });
     await task.save();
     if (req.io) req.io.to(task.project.toString()).emit('task_changed', { taskId: task._id });

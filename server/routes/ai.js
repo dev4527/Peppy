@@ -3,6 +3,8 @@ const router = express.Router(); // ✅ FIXED: Express Router syntax fixed
 const axios = require('axios'); 
 const Task = require('../models/Task');
 const auth = require('../middleware/authMiddleware');
+const Project = require('../models/Project');
+const { loadCurrentUser, canViewProject } = require('../utils/accessControl');
 
 // @route   POST api/ai/chat
 // @desc    Process project insights and technical doubts strictly in professional English using Groq Free Tier
@@ -23,6 +25,11 @@ router.post('/chat', auth, async (req, res) => {
 
     // DYNAMIC DATABASE SYNC FETCH: PULL WORKSPACE LOGS IF PROJECT IS ACTIVE
     if (projectId) {
+      const currentUser = await loadCurrentUser(req);
+      const project = await Project.findById(projectId);
+      if (!project || !canViewProject(currentUser, project)) {
+        return res.status(403).json({ response: 'You do not have access to this project context.' });
+      }
       const activeTasks = await Task.find({ project: projectId }).populate('assignedTo', 'name role');
       
       const structuredTasks = activeTasks.map(t => ({

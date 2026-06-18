@@ -8,6 +8,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
+  const [actualHours, setActualHours] = useState('');
   
   // Local reactive states to bypass render locks
   const [localComments, setLocalComments] = useState([]);
@@ -19,6 +20,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
       setLocalComments(task.comments || []);
       setLocalSubtasks(task.subtasks || []);
       setLocalAttachments(task.attachments || []);
+      setActualHours(task.actualMinutes ? String(task.actualMinutes / 60) : '');
     }
   }, [task]);
 
@@ -51,6 +53,9 @@ function TaskDrawer({ task, onClose, onRefresh }) {
       
       if (res.data && res.data.comments) {
         setLocalComments(res.data.comments);
+      }
+      if (res.data?.emailNotification?.failed?.length > 0) {
+        alert(`Comment saved, but email delivery failed for: ${res.data.emailNotification.failed.join(', ')}. Check EMAIL_USER and EMAIL_PASS on the deployed server.`);
       }
       if (typeof onRefresh === 'function') onRefresh();
     } catch (err) { 
@@ -163,6 +168,56 @@ function TaskDrawer({ task, onClose, onRefresh }) {
           <p className="bg-[#252628] p-3 rounded-xl border border-[#333538] text-[#cbd5e1] leading-relaxed whitespace-pre-line">
             {task.description || 'No instruction context layers declared.'}
           </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-[#252628] border border-[#333538] rounded-xl p-3">
+            <span className="text-[9px] text-slate-500 font-bold uppercase">Schedule</span>
+            <p className="text-[11px] text-slate-200 mt-1">
+              {task.startDate ? new Date(task.startDate).toLocaleDateString() : 'No start'} → {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
+            </p>
+          </div>
+          <div className="bg-[#252628] border border-[#333538] rounded-xl p-3">
+            <span className="text-[9px] text-slate-500 font-bold uppercase">Time estimate</span>
+            <p className="text-[11px] text-slate-200 mt-1">{task.estimatedMinutes ? `${task.estimatedMinutes / 60} hours` : 'Not estimated'}</p>
+          </div>
+        </div>
+
+        {(task.isMilestone || (task.tags || []).length > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {task.isMilestone && <span className="text-[9px] px-2 py-1 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20 font-black uppercase">Milestone</span>}
+            {(task.tags || []).map(tag => <span key={tag} className="text-[9px] px-2 py-1 rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20">#{tag}</span>)}
+          </div>
+        )}
+
+        <div className="border-t border-[#2d2e30] pt-4">
+          <h4 className="text-[#848285] font-bold mb-2 uppercase text-[10px] tracking-wider">Time Tracking</h4>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min="0"
+              step="0.25"
+              value={actualHours}
+              onChange={(e) => setActualHours(e.target.value)}
+              placeholder="Actual hours"
+              className="flex-1 bg-[#252628] border border-[#333538] rounded-xl px-3 py-2 text-white text-xs focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await api.put(`/api/tasks/${task._id}`, { actualMinutes: Math.round((Number(actualHours) || 0) * 60) });
+                  if (typeof onRefresh === 'function') onRefresh();
+                } catch (err) {
+                  console.error('Time tracking update failed:', err);
+                  alert(err.response?.data?.message || 'Failed to update tracked time');
+                }
+              }}
+              className="bg-sky-600 hover:bg-sky-700 text-white font-bold px-3 rounded-xl text-[10px] uppercase"
+            >
+              Save
+            </button>
+          </div>
         </div>
 
         {/* 📁 FILE ASSETS ATTACHMENT DECK LAYER */}

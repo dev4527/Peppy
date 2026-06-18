@@ -38,6 +38,10 @@ function Dashboard() {
   const [targetProject, setTargetProject] = useState('');
   const [recurrenceType, setRecurrenceType] = useState('One-time task'); 
   const [dueDate, setDueDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [isMilestone, setIsMilestone] = useState(false);
+  const [taskTags, setTaskTags] = useState('');
+  const [estimatedHours, setEstimatedHours] = useState('');
   const [loading, setLoading] = useState(false);
   
   // 🚀 PROJECT + WHATSAPP GROUP MERGED ONBOARDING STATES
@@ -194,6 +198,10 @@ function Dashboard() {
       dueDate: dueDate || null,
       assignedTo: assignedTo || null,
       recurrenceType: recurrenceType || 'One-time task',
+      startDate: startDate || null,
+      isMilestone,
+      tags: taskTags.split(',').map(tag => tag.trim()).filter(Boolean),
+      estimatedMinutes: Math.round((Number(estimatedHours) || 0) * 60),
       status: 'To Do',
       createdAt: new Date().toISOString()
     };
@@ -203,13 +211,27 @@ function Dashboard() {
     
     try {
       // Send to server
-      const response = await api.post('/api/tasks', { title, description, priority, project: finalProjectID, dueDate, assignedTo: assignedTo || null, recurrenceType });
+      const response = await api.post('/api/tasks', {
+        title,
+        description,
+        priority,
+        project: finalProjectID,
+        dueDate,
+        assignedTo: assignedTo || null,
+        recurrenceType,
+        startDate,
+        isMilestone,
+        tags: taskTags,
+        estimatedMinutes: Math.round((Number(estimatedHours) || 0) * 60)
+      });
       
       // Replace optimistic task with real one
       setTasks(prev => prev.map(t => t._id === optimisticTask._id ? response.data : t));
       
       // Reset form immediately for better UX
-      setTitle(''); setDescription(''); setPriority('Medium'); setDueDate(''); setAssignedTo(''); setRecurrenceType('One-time task');
+      setTitle(''); setDescription(''); setPriority('Medium'); setDueDate(''); setStartDate('');
+      setAssignedTo(''); setRecurrenceType('One-time task'); setIsMilestone(false);
+      setTaskTags(''); setEstimatedHours('');
       setShowModal(false);
       
       // Refresh in background without blocking UI
@@ -424,7 +446,13 @@ function Dashboard() {
                           )}
 
                           <div className="flex flex-wrap items-center gap-2 mt-3">
+                            {task.isMilestone && (
+                              <span className="text-[9px] px-2 py-0.5 rounded-md font-black uppercase bg-purple-500/10 text-purple-500 border border-purple-500/20">Milestone</span>
+                            )}
                             {renderRecurrenceChip(task.recurrenceType)}
+                            {(task.tags || []).slice(0, 2).map(tag => (
+                              <span key={tag} className="text-[9px] px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-500 border border-sky-500/20">#{tag}</span>
+                            ))}
                             {task.dueDate && (
                               <span className="text-[9px] text-slate-500 dark:text-slate-400">
                                 {new Date(task.dueDate).toLocaleDateString()}
@@ -521,13 +549,17 @@ function Dashboard() {
                   
                   <option disabled className="text-slate-400">────────────────────</option>
                   
-                  {teamMembers.map((member) => (
+                  {(user?.role === 'Admin' || user?.role === 'Manager') && teamMembers.map((member) => (
                     <option key={member._id} value={member._id}>{member.name} ({member.role} &bull; {member.team})</option>
                   ))}
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-500 dark:text-[#a2a0a2] font-semibold mb-1.5">Start Date</label>
+                  <input type="date" className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none cursor-pointer" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                </div>
                 <div>
                   <label className="block text-slate-500 dark:text-[#a2a0a2] font-semibold mb-1.5">Priority Rank</label>
                   <select className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none" value={priority} onChange={(e) => setPriority(e.target.value)}><option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option></select>
@@ -537,6 +569,20 @@ function Dashboard() {
                   <input type="date" className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none cursor-pointer" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-500 dark:text-[#a2a0a2] font-semibold mb-1.5">Labels</label>
+                  <input type="text" placeholder="design, urgent" value={taskTags} onChange={(e) => setTaskTags(e.target.value)} className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-slate-500 dark:text-[#a2a0a2] font-semibold mb-1.5">Estimate (hours)</label>
+                  <input type="number" min="0" step="0.25" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none" />
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-semibold cursor-pointer">
+                <input type="checkbox" checked={isMilestone} onChange={(e) => setIsMilestone(e.target.checked)} className="accent-purple-500" />
+                Mark as project milestone
+              </label>
               <div className="flex gap-3 pt-2">
                 <button type="submit" disabled={loading} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-xl transition disabled:opacity-50 cursor-pointer">{loading ? 'Deploying...' : 'Deploy Card'}</button>
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold py-2.5 rounded-xl transition cursor-pointer">Cancel</button>

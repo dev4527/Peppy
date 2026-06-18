@@ -21,6 +21,9 @@ router.post('/register', async (req, res) => {
     const normalizedEmail = email.toLowerCase().trim();
     let user = await User.findOne({ email: normalizedEmail });
     if (user) return res.status(400).json({ message: 'User already exists.' });
+    if (role === 'Admin' && await User.exists({ role: 'Admin' })) {
+      return res.status(403).json({ message: 'An administrator already exists. Additional admins must be provisioned securely.' });
+    }
 
     const executiveTeams = {
       CTO: 'Technical Team',
@@ -160,6 +163,11 @@ router.get('/users/team/:teamName', auth, async (req, res) => {
   try {
     let currentCreatorID = req.user?.user?.id || req.user?.id || req.user?._id || req.user;
     const decodedTeamName = decodeURIComponent(req.params.teamName);
+    const currentUser = await User.findById(currentCreatorID);
+    if (!currentUser) return res.status(401).json({ message: 'User profile not found.' });
+    if (currentUser.role !== 'Admin' && String(currentUser.team).toLowerCase() !== decodedTeamName.toLowerCase()) {
+      return res.status(403).json({ message: 'You cannot browse users outside your team.' });
+    }
     
     const queryCriteria = { 
       team: decodedTeamName,

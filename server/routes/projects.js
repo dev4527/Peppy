@@ -22,6 +22,9 @@ router.post('/', auth, async (req, res) => {
     if (!currentUser) {
       return res.status(404).json({ message: 'User reference missing inside directory dataset.' });
     }
+    if (!['Admin', 'Manager'].includes(currentUser.role)) {
+      return res.status(403).json({ message: 'Only administrators and managers can create projects.' });
+    }
 
     let assignedTeamGroup = currentUser.role === 'Admin' ? (teamCategory || 'Technical Team') : currentUser.team;
 

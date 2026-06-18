@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Notification = require('../models/Notification');
 const auth = require('../middleware/authMiddleware');
+const { getUserId } = require('../utils/accessControl');
 
 // @route   GET api/notifications
 // @desc    Get all workspace notifications for logged-in user
@@ -42,6 +43,9 @@ router.put('/:id/read', auth, async (req, res) => {
     const alert = await Notification.findById(req.params.id);
     if (!alert) {
       return res.status(404).json({ message: 'Notification item not found in cluster.' });
+    }
+    if (String(alert.recipient) !== String(getUserId(req))) {
+      return res.status(403).json({ message: 'You cannot update another user’s notification.' });
     }
 
     alert.isRead = true;

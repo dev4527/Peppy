@@ -3,12 +3,17 @@ const router = express.Router();
 const Team = require('../models/Team');
 const User = require('../models/User');
 const auth = require('../middleware/authMiddleware');
+const { loadCurrentUser } = require('../utils/accessControl');
 
 // @route   POST api/teams
 // @desc    Create a new operational department team safely with complete error fallback layers
 router.post('/', auth, async (req, res) => {
   const { name } = req.body;
   try {
+    const currentUser = await loadCurrentUser(req);
+    if (!currentUser || currentUser.role !== 'Admin') {
+      return res.status(403).json({ message: 'Only administrators can create teams.' });
+    }
     if (!name || !name.trim()) {
       return res.status(400).json({ message: 'Team name is required.' });
     }
@@ -45,6 +50,8 @@ router.post('/', auth, async (req, res) => {
 // @desc    Get all active corporate teams
 router.get('/', auth, async (req, res) => {
   try {
+    const currentUser = await loadCurrentUser(req);
+    if (!currentUser) return res.status(401).json({ message: 'Authentication required.' });
     const teams = await Team.find().sort({ createdAt: 1 });
     return res.json(teams);
   } catch (error) {
@@ -56,6 +63,10 @@ router.get('/', auth, async (req, res) => {
 // @desc    Delete a team branch
 router.delete('/:id', auth, async (req, res) => {
   try {
+    const currentUser = await loadCurrentUser(req);
+    if (!currentUser || currentUser.role !== 'Admin') {
+      return res.status(403).json({ message: 'Only administrators can delete teams.' });
+    }
     const team = await Team.findById(req.params.id);
     if (!team) return res.status(404).json({ message: 'Team not found.' });
 

@@ -83,6 +83,10 @@ const initScheduler = () => {
             assignedTo: task.assignedTo ? task.assignedTo._id : null,
             createdBy: task.createdBy,
             recurrenceType: task.recurrenceType,
+            startDate: today,
+            isMilestone: task.isMilestone,
+            tags: task.tags,
+            estimatedMinutes: task.estimatedMinutes,
             dueDate: new Date(today.getTime() + (task.recurrenceType === 'Daily task' ? 1 : task.recurrenceType === 'Weekly task' ? 7 : task.recurrenceType === 'Monthly task' ? 30 : 90) * 24 * 60 * 60 * 1000)
           });
 

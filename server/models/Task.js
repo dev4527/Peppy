@@ -43,6 +43,28 @@ const TaskSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  startDate: {
+    type: Date,
+    default: null
+  },
+  isMilestone: {
+    type: Boolean,
+    default: false
+  },
+  tags: [{
+    type: String,
+    trim: true
+  }],
+  estimatedMinutes: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
+  actualMinutes: {
+    type: Number,
+    min: 0,
+    default: 0
+  },
   recurrenceType: {
     type: String,
     enum: ['Daily task', 'Weekly task', 'Monthly task', 'Quarterly task', 'One-time task'],
