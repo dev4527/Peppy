@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import api, { API_BASE } from '../utils/api';
 
 function TaskDrawer({ task, onClose, onRefresh }) {
@@ -33,7 +33,7 @@ function TaskDrawer({ task, onClose, onRefresh }) {
     
     if (!commentText.trim()) return;
 
-    const userMeta = JSON.parse(localStorage.getItem('user') || '{}');
+    const userMeta = JSON.parse(localStorage.getItem('peppy_user') || '{}');
     const currentUserName = userMeta.name || 'Admin';
     const textToPost = commentText.trim();
 
@@ -215,7 +215,6 @@ function TaskDrawer({ task, onClose, onRefresh }) {
                 e.preventDefault();
                 if (!linkUrl || !linkUrl.trim()) return alert('Enter a URL');
                 try {
-                  const token = localStorage.getItem('peppy_token');
                   const res = await api.post(`/api/tasks/${task._id}/attach-link`, { title: linkTitle, url: linkUrl });
                   if (res.data && res.data.links) {
                     setLocalAttachments(prev => prev); // keep attachments

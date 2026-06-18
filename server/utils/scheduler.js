@@ -62,10 +62,10 @@ const initScheduler = () => {
           const employeeEmail = task.assignedTo ? task.assignedTo.email : null;
 
           // 📢 A. NOTIFY FOUNDER INSTANTLY UPON COMPLETION CYCLE TRIGGER
-          const founderEmailAddress = process.env.FOUNDER_EMAIL || 'deveshchaurriwar50@gm.com';
+          const founderEmailAddress = process.env.FOUNDER_EMAIL || process.env.EMAIL_USER;
           
           // Hum Daily tasks ka load founder inbox par nahi dalenge, sirf Weekly, Monthly aur Quarterly bhejenge
-          if (task.recurrenceType !== 'Daily task') {
+          if (task.recurrenceType !== 'Daily task' && founderEmailAddress) {
             const founderSubject = `👑 Task Completed Notification: [${task.recurrenceType.toUpperCase()}]`;
             const founderBody = `Hello Founder,\n\nThis is an automated operational audit report.\n\nThe following recurring milestone task has been successfully marked as COMPLETED:\n\n- Task Title: ${task.title}\n- Cadence Type: ${task.recurrenceType}\n- Executed By: ${employeeName}\n- Completion Date: ${completionDate.toLocaleDateString()}\n\nThe system has archived this log and deployed a fresh placeholder card for their next workflow cycle.\n\nBest,\nPeppy Tracker Core System.`;
             
@@ -81,6 +81,7 @@ const initScheduler = () => {
             status: 'To Do', 
             project: task.project,
             assignedTo: task.assignedTo ? task.assignedTo._id : null,
+            createdBy: task.createdBy,
             recurrenceType: task.recurrenceType,
             dueDate: new Date(today.getTime() + (task.recurrenceType === 'Daily task' ? 1 : task.recurrenceType === 'Weekly task' ? 7 : task.recurrenceType === 'Monthly task' ? 30 : 90) * 24 * 60 * 60 * 1000)
           });

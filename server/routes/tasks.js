@@ -12,7 +12,7 @@ const auth = require('../middleware/authMiddleware');
 // ------------------------------------------------------------------
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '../public/uploads');
+    const uploadPath = path.join(__dirname, '../uploads');
     // Ensure directory paths exist recursively before saving files
     fs.mkdirSync(uploadPath, { recursive: true });
     cb(null, uploadPath);
@@ -40,6 +40,31 @@ const upload = multer({
 // ==========================================
 
 // @route   GET api/tasks/project/:projectId
+router.get('/dashboard', auth, async (req, res) => {
+  try {
+    const userId = req.user?.user?.id || req.user?.id || req.user?._id || req.user;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'User verification mismatch during dashboard query.' });
+    }
+
+    const dashboardTasks = await Task.find({
+      $or: [
+        { assignedTo: userId },
+        { createdBy: userId }
+      ]
+    })
+      .populate('project', 'name teamCategory')
+      .populate('assignedTo', 'name email role')
+      .sort({ createdAt: -1 });
+
+    return res.json(dashboardTasks);
+  } catch (error) {
+    console.error('Dashboard task retrieval failure:', error);
+    return res.status(500).json({ message: 'Failed to capture dashboard task mapping.' });
+  }
+});
+
 router.get('/project/:projectId', auth, async (req, res) => {
   try {
     // Enforce visibility: Admins and project creators/managers can view all tasks.
@@ -69,11 +94,17 @@ router.get('/project/:projectId', auth, async (req, res) => {
       // Managers can view tasks for projects they created OR projects in their team
       if (String(project.createdBy) !== String(currentUserId) && String(project.teamCategory || '').toLowerCase() !== String(currentUser.team || '').toLowerCase()) {
         // If manager is not related to this project, restrict to assigned tasks only
-        query.assignedTo = currentUserId;
+        query.$or = [
+          { assignedTo: currentUserId },
+          { createdBy: currentUserId }
+        ];
       }
     } else {
       // Employees: only tasks assigned to them
-      query.assignedTo = currentUserId;
+      query.$or = [
+        { assignedTo: currentUserId },
+        { createdBy: currentUserId }
+      ];
     }
 
     const tasks = await Task.find(query)
@@ -116,6 +147,23 @@ router.get('/my-tasks', auth, async (req, res) => {
 
 // @route   POST api/tasks
 // @desc    Create a new task card safely and trigger dynamic notification emails
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id)
+      .populate('project', 'name teamCategory createdBy')
+      .populate('assignedTo', 'name email role team');
+
+    if (!task) {
+      return res.status(404).json({ message: 'Task asset card target not found.' });
+    }
+
+    return res.json(task);
+  } catch (error) {
+    console.error('Task details retrieval failure:', error);
+    return res.status(500).json({ message: 'Failed to load task details.' });
+  }
+});
+
 router.post('/', auth, async (req, res) => {
   try {
     const { title, description, priority, project, dueDate, assignedTo, recurrenceType } = req.body;
@@ -147,11 +195,16 @@ router.post('/', auth, async (req, res) => {
     });
 
     await newTask.save();
+
+    if (req.io) {
+      req.io.to(String(project)).emit('task_changed', { taskId: newTask._id, action: 'created' });
+    }
     console.log(`🎯 New task successfully deployed: [${title}]`);
 
     // SAFE BOUNDARY: Only execute notification hooks if an assignee user exists
     if (assignedTo) {
-      try {
+      void (async () => {
+        try {
         const populatedTask = await Task.findById(newTask._id).populate('assignedTo', 'name email');
 
         if (populatedTask && populatedTask.assignedTo && populatedTask.assignedTo.email) {
@@ -198,6 +251,7 @@ router.post('/', auth, async (req, res) => {
       } catch (innerError) {
         console.error('⚠️ Notification/Mail branch validation bypassed safely:', innerError.message);
       }
+      })();
     }
 
     return res.status(201).json(newTask);
@@ -218,7 +272,10 @@ router.put('/:id', auth, async (req, res) => {
     if (title !== undefined) task.title = title.trim();
     if (description !== undefined) task.description = description.trim();
     if (priority !== undefined) task.priority = priority;
-    if (status !== undefined) task.status = status;
+    if (status !== undefined) {
+      task.status = status;
+      task.completedAt = status === 'Completed' ? (task.completedAt || new Date()) : null;
+    }
     if (dueDate !== undefined) task.dueDate = dueDate;
     if (assignedTo !== undefined) task.assignedTo = assignedTo || null;
     if (recurrenceType !== undefined) task.recurrenceType = recurrenceType;

@@ -19,15 +19,7 @@ router.post('/', auth, async (req, res) => {
     }
 
     // 👤 Absolute safety token check: Ensure we catch a valid user ID string for createdBy field
-    let finalCreatorID = req.user ? req.user.id : null;
-
-    if (!finalCreatorID) {
-      // System baseline fail-safe lookup if auth middleware token context slips away
-      const fallbackUser = await User.findOne();
-      if (fallbackUser) {
-        finalCreatorID = fallbackUser._id;
-      }
-    }
+    const finalCreatorID = req.user?.user?.id || req.user?.id || req.user?._id || null;
 
     // Double check that finalCreatorID is not empty/null before hitting database boundaries
     if (!finalCreatorID) {

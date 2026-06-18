@@ -11,7 +11,7 @@ const auth = require('../middleware/authMiddleware');
 
 // @route    POST api/auth/register
 router.post('/register', async (req, res) => {
-  const { name, email, password, role, team, managerId } = req.body;
+  const { name, email, password, role, team, managerId, managerTarget } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ message: 'Name, email, and password are required.' });
@@ -22,13 +22,34 @@ router.post('/register', async (req, res) => {
     let user = await User.findOne({ email: normalizedEmail });
     if (user) return res.status(400).json({ message: 'User already exists.' });
 
+    const executiveTeams = {
+      CTO: 'Technical Team',
+      CMO: 'Marketing Team',
+      COO: 'Operations Team',
+      CPO: 'Product Team'
+    };
+    const isExecutive = Boolean(executiveTeams[role]);
+    const normalizedRole = isExecutive ? 'Manager' : (role || 'Employee');
+    const selectedManagerRole = normalizedRole === 'Employee' ? managerTarget : null;
+    const managerProfile = managerId
+      ? await User.findById(managerId)
+      : selectedManagerRole
+        ? await User.findOne({ role: 'Manager', managerRole: selectedManagerRole })
+        : null;
+    const resolvedTeam = normalizedRole === 'Admin'
+      ? 'Global Command Hub'
+      : isExecutive
+        ? executiveTeams[role]
+        : managerProfile?.team || executiveTeams[selectedManagerRole] || team || 'Technical Team';
+
     user = new User({
       name: name.trim(),
       email: normalizedEmail,
       password,
-      role: role || 'Employee',
-      team: role === 'Admin' ? 'Global Command Hub' : (team || 'Technical Team'),
-      manager: managerId || null
+      role: normalizedRole,
+      team: resolvedTeam,
+      manager: managerProfile?._id || null,
+      managerRole: isExecutive ? role : selectedManagerRole
     });
 
     const salt = await bcrypt.genSalt(10);
@@ -38,7 +59,7 @@ router.post('/register', async (req, res) => {
     const payload = { user: { id: user.id, role: user.role, team: user.team } };
     jwt.sign(payload, process.env.JWT_SECRET || 'peppySecretKeyMaster', { expiresIn: '7d' }, (err, token) => {
       if (err) throw err;
-      res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, team: user.team } });
+      res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, team: user.team, managerRole: user.managerRole } });
     });
   } catch (err) {
     console.error(err.message);
@@ -64,7 +85,7 @@ router.post('/login', async (req, res) => {
     const payload = { user: { id: user.id, role: user.role, team: user.team } };
     jwt.sign(payload, process.env.JWT_SECRET || 'peppySecretKeyMaster', { expiresIn: '7d' }, (err, token) => {
       if (err) throw err;
-      res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, team: user.team } });
+      res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, team: user.team, managerRole: user.managerRole } });
     });
   } catch (err) {
     console.error(err.message);
@@ -120,8 +141,11 @@ router.get('/users', auth, async (req, res) => {
 
       usersList = Array.from(mergedMap.values());
     } else {
-      // Regular employees see only themselves and perhaps team members in same team
-      usersList = await User.find({ _id: currentCreatorID }).select('-password');
+      // Regular employees can start private chats with colleagues in their team.
+      usersList = await User.find({
+        team: currentUserProfile.team,
+        _id: { $ne: currentCreatorID }
+      }).select('-password').sort({ name: 1 });
     }
 
     return res.json(usersList);

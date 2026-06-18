@@ -41,6 +41,7 @@ app.use(express.json());
 
 // ✅ EXPOSE UPLOADS AS REUSEABLE STATIC ASSET GAP
 app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
 // 📬 SETUP NODEMAILER EMAIL HANDSHAKE ENGINE WITH EXPLICIT SMTP POOL
 const smtpConfig = {
@@ -115,6 +116,11 @@ io.on('connection', (socket) => {
     console.log(`🔒 Employee secure workspace token attached to room: ${projectId}`);
   });
 
+  socket.on('join_chat_groups', (groupIds = []) => {
+    const rooms = Array.isArray(groupIds) ? groupIds : [groupIds];
+    rooms.filter(Boolean).forEach((groupId) => socket.join(String(groupId)));
+  });
+
   // Real-time dynamic point-to-point chat packet router tunnel
   socket.on('send_direct_message', (data) => {
     const { senderId, receiverId, text, _id, createdAt } = data;
@@ -122,6 +128,21 @@ io.on('connection', (socket) => {
     io.to(receiverId).emit('receive_direct_message', {
       sender: senderId,
       receiver: receiverId,
+      text,
+      _id,
+      createdAt
+    });
+  });
+
+  socket.on('send_group_message', (data) => {
+    const { groupId, group, sender, text, _id, createdAt } = data;
+    const targetGroupId = groupId || group;
+
+    if (!targetGroupId) return;
+
+    socket.to(String(targetGroupId)).emit('receive_group_message', {
+      group: String(targetGroupId),
+      sender,
       text,
       _id,
       createdAt
