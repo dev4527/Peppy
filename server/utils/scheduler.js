@@ -62,7 +62,7 @@ const initScheduler = () => {
           const employeeEmail = task.assignedTo ? task.assignedTo.email : null;
 
           // 📢 A. NOTIFY FOUNDER INSTANTLY UPON COMPLETION CYCLE TRIGGER
-          const founderEmailAddress = process.env.FOUNDER_EMAIL || 'founder@peppytrack.com';
+          const founderEmailAddress = process.env.FOUNDER_EMAIL || 'deveshchaurriwar50@gm.com';
           
           // Hum Daily tasks ka load founder inbox par nahi dalenge, sirf Weekly, Monthly aur Quarterly bhejenge
           if (task.recurrenceType !== 'Daily task') {
