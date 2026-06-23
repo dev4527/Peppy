@@ -18,13 +18,18 @@ const canManageProject = (user, project) => {
   if (user.role === 'Admin') return true;
   return user.role === 'Manager' && (
     String(project.createdBy) === String(user._id) ||
-    sameTeam(project.teamCategory, user.team)
+    sameTeam(project.teamCategory, user.team) ||
+    (project.sharedTeams || []).some(team => sameTeam(team, user.team))
   );
 };
 
 const canViewProject = (user, project) => {
   if (canManageProject(user, project)) return true;
-  return Boolean(user && project && sameTeam(project.teamCategory, user.team));
+  return Boolean(user && project && (
+    sameTeam(project.teamCategory, user.team) ||
+    (project.sharedTeams || []).some(team => sameTeam(team, user.team)) ||
+    (project.collaborators || []).some(collaborator => String(collaborator) === String(user._id))
+  ));
 };
 
 const canViewTask = async (user, task) => {

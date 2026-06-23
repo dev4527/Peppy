@@ -42,6 +42,8 @@ function Dashboard() {
   const [isMilestone, setIsMilestone] = useState(false);
   const [taskTags, setTaskTags] = useState('');
   const [estimatedHours, setEstimatedHours] = useState('');
+  const [complexityScore, setComplexityScore] = useState('3');
+  const [reviewRequired, setReviewRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   
   // 🚀 PROJECT + WHATSAPP GROUP MERGED ONBOARDING STATES
@@ -202,6 +204,8 @@ function Dashboard() {
       isMilestone,
       tags: taskTags.split(',').map(tag => tag.trim()).filter(Boolean),
       estimatedMinutes: Math.round((Number(estimatedHours) || 0) * 60),
+      complexityScore: Number(complexityScore) || 3,
+      reviewRequired,
       status: 'To Do',
       createdAt: new Date().toISOString()
     };
@@ -222,7 +226,9 @@ function Dashboard() {
         startDate,
         isMilestone,
         tags: taskTags,
-        estimatedMinutes: Math.round((Number(estimatedHours) || 0) * 60)
+        estimatedMinutes: Math.round((Number(estimatedHours) || 0) * 60),
+        complexityScore: Number(complexityScore) || 3,
+        reviewRequired
       });
       
       // Replace optimistic task with real one
@@ -231,7 +237,7 @@ function Dashboard() {
       // Reset form immediately for better UX
       setTitle(''); setDescription(''); setPriority('Medium'); setDueDate(''); setStartDate('');
       setAssignedTo(''); setRecurrenceType('One-time task'); setIsMilestone(false);
-      setTaskTags(''); setEstimatedHours('');
+      setTaskTags(''); setEstimatedHours(''); setComplexityScore('3'); setReviewRequired(false);
       setShowModal(false);
       
       // Refresh in background without blocking UI
@@ -307,7 +313,7 @@ function Dashboard() {
     try {
       await api.put(`/api/tasks/${taskId}`, { status: nextStatus });
       fetchDashboardTasks();
-    } catch (err) { console.error(err); fetchDashboardTasks(); }
+    } catch (err) { console.error(err); alert(err.response?.data?.message || 'Failed to move task status'); fetchDashboardTasks(); }
   };
 
   const renderRecurrenceChip = (type) => {
@@ -578,6 +584,16 @@ function Dashboard() {
                   <label className="block text-slate-500 dark:text-[#a2a0a2] font-semibold mb-1.5">Estimate (hours)</label>
                   <input type="number" min="0" step="0.25" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none" />
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-500 dark:text-[#a2a0a2] font-semibold mb-1.5">Complexity Score (1-10)</label>
+                  <input type="number" min="1" max="10" value={complexityScore} onChange={(e) => setComplexityScore(e.target.value)} className="w-full bg-slate-50 dark:bg-[#252628] border border-slate-200 dark:border-[#333538] rounded-xl px-4 py-2.5 text-slate-900 dark:text-white focus:outline-none" />
+                </div>
+                <label className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-semibold cursor-pointer mt-6">
+                  <input type="checkbox" checked={reviewRequired} onChange={(e) => setReviewRequired(e.target.checked)} className="accent-emerald-500" />
+                  Require manager review
+                </label>
               </div>
               <label className="flex items-center gap-2 text-slate-600 dark:text-slate-300 font-semibold cursor-pointer">
                 <input type="checkbox" checked={isMilestone} onChange={(e) => setIsMilestone(e.target.checked)} className="accent-purple-500" />

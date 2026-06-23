@@ -41,7 +41,20 @@ const UserSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: null
-  }
+  },
+  googleWorkspace: {
+    refreshToken: { type: String, select: false, default: '' },
+    connectedEmail: { type: String, trim: true, lowercase: true, default: '' },
+    scopes: [{ type: String, trim: true }],
+    connectedAt: { type: Date, default: null }
+  },
+  privateFiles: [{
+    fileName: { type: String, required: true },
+    filePath: { type: String, required: true },
+    mimeType: { type: String, default: 'application/octet-stream' },
+    note: { type: String, trim: true, default: '' },
+    uploadedAt: { type: Date, default: Date.now }
+  }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', UserSchema);

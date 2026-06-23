@@ -65,6 +65,30 @@ const TaskSchema = new mongoose.Schema({
     min: 0,
     default: 0
   },
+  complexityScore: {
+    type: Number,
+    min: 1,
+    max: 10,
+    default: 3
+  },
+  performanceScore: {
+    type: Number,
+    min: 0,
+    max: 100,
+    default: 0
+  },
+  review: {
+    required: { type: Boolean, default: false },
+    status: {
+      type: String,
+      enum: ['Not Required', 'Pending', 'Approved', 'Rejected'],
+      default: 'Not Required'
+    },
+    requestedAt: { type: Date, default: null },
+    reviewedAt: { type: Date, default: null },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    notes: { type: String, trim: true, default: '' }
+  },
   recurrenceType: {
     type: String,
     enum: ['Daily task', 'Weekly task', 'Monthly task', 'Quarterly task', 'One-time task'],

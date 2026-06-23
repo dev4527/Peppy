@@ -185,7 +185,7 @@ router.post('/', auth, async (req, res) => {
   try {
     const {
       title, description, priority, project, dueDate, assignedTo, recurrenceType,
-      startDate, isMilestone, tags, estimatedMinutes
+      startDate, isMilestone, tags, estimatedMinutes, complexityScore, reviewRequired
     } = req.body;
 
     if (!title || !project) {
@@ -218,6 +218,12 @@ router.post('/', auth, async (req, res) => {
       isMilestone: Boolean(isMilestone),
       tags: Array.isArray(tags) ? tags : String(tags || '').split(',').map(tag => tag.trim()).filter(Boolean),
       estimatedMinutes: Number(estimatedMinutes) || 0,
+      complexityScore: Math.min(10, Math.max(1, Number(complexityScore) || 3)),
+      review: {
+        required: Boolean(reviewRequired),
+        status: reviewRequired ? 'Pending' : 'Not Required',
+        requestedAt: reviewRequired ? new Date() : null
+      },
       activities: [{
         text: 'created this task',
         userName: currentUser.name
@@ -296,7 +302,7 @@ router.put('/:id', auth, async (req, res) => {
   try {
     const {
       title, description, priority, status, dueDate, assignedTo, recurrenceType,
-      startDate, isMilestone, tags, estimatedMinutes, actualMinutes
+      startDate, isMilestone, tags, estimatedMinutes, actualMinutes, complexityScore, performanceScore, reviewRequired
     } = req.body;
     
     let task = await Task.findById(req.params.id);
@@ -314,6 +320,13 @@ router.put('/:id', auth, async (req, res) => {
     if (description !== undefined) task.description = description.trim();
     if (priority !== undefined) task.priority = priority;
     if (status !== undefined) {
+      if (status === 'Completed' && task.review?.required && task.review.status !== 'Approved') {
+        return res.status(403).json({ message: 'This task requires manager review approval before completion.' });
+      }
+      if (status === 'Review' && task.review?.required) {
+        task.review.status = 'Pending';
+        task.review.requestedAt = task.review.requestedAt || new Date();
+      }
       task.status = status;
       task.completedAt = status === 'Completed' ? (task.completedAt || new Date()) : null;
     }
@@ -325,6 +338,21 @@ router.put('/:id', auth, async (req, res) => {
     if (tags !== undefined) task.tags = Array.isArray(tags) ? tags : String(tags).split(',').map(tag => tag.trim()).filter(Boolean);
     if (estimatedMinutes !== undefined) task.estimatedMinutes = Math.max(0, Number(estimatedMinutes) || 0);
     if (actualMinutes !== undefined) task.actualMinutes = Math.max(0, Number(actualMinutes) || 0);
+    if (complexityScore !== undefined) task.complexityScore = Math.min(10, Math.max(1, Number(complexityScore) || 1));
+    if (performanceScore !== undefined) {
+      if (!['Admin', 'Manager'].includes(currentUser.role)) {
+        return res.status(403).json({ message: 'Only managers and admins can set performance scores.' });
+      }
+      task.performanceScore = Math.min(100, Math.max(0, Number(performanceScore) || 0));
+    }
+    if (reviewRequired !== undefined) {
+      if (!['Admin', 'Manager'].includes(currentUser.role)) {
+        return res.status(403).json({ message: 'Only managers and admins can change review requirements.' });
+      }
+      task.review.required = Boolean(reviewRequired);
+      task.review.status = reviewRequired ? (task.review.status === 'Not Required' ? 'Pending' : task.review.status) : 'Not Required';
+      task.review.requestedAt = reviewRequired ? (task.review.requestedAt || new Date()) : null;
+    }
 
     const changedFields = Object.keys(req.body).filter(key => req.body[key] !== undefined);
     if (changedFields.length > 0) {
@@ -344,6 +372,46 @@ router.put('/:id', auth, async (req, res) => {
   } catch (error) {
     console.error('❌ Task transaction update update crash:', error);
     return res.status(500).json({ message: 'Internal server task mutation breakdown loop.' });
+  }
+});
+
+router.post('/:id/review', auth, async (req, res) => {
+  try {
+    const { decision, notes, performanceScore } = req.body;
+    if (!['approve', 'reject'].includes(String(decision).toLowerCase())) {
+      return res.status(400).json({ message: 'Review decision must be approve or reject.' });
+    }
+
+    const task = await Task.findById(req.params.id).populate('project', 'teamCategory createdBy sharedTeams collaborators');
+    if (!task) return res.status(404).json({ message: 'Task asset card target not found.' });
+
+    const currentUser = await loadCurrentUser(req);
+    if (!canManageProject(currentUser, task.project)) {
+      return res.status(403).json({ message: 'Only a manager/admin for this project can review this task.' });
+    }
+
+    const approved = String(decision).toLowerCase() === 'approve';
+    task.review.required = true;
+    task.review.status = approved ? 'Approved' : 'Rejected';
+    task.review.reviewedAt = new Date();
+    task.review.reviewedBy = currentUser._id;
+    task.review.notes = notes ? String(notes).trim() : '';
+    task.status = approved ? 'Completed' : 'In Progress';
+    task.completedAt = approved ? new Date() : null;
+    if (performanceScore !== undefined) {
+      task.performanceScore = Math.min(100, Math.max(0, Number(performanceScore) || 0));
+    }
+    task.activities.push({
+      text: `${approved ? 'approved' : 'rejected'} manager review${task.review.notes ? `: ${task.review.notes}` : ''}`,
+      userName: currentUser.name
+    });
+
+    await task.save();
+    if (req.io) req.io.to(task.project._id.toString()).emit('task_changed', { taskId: task._id, action: 'reviewed' });
+    return res.json(task);
+  } catch (error) {
+    console.error('Task review workflow failure:', error);
+    return res.status(500).json({ message: 'Failed to process task review.' });
   }
 });
 

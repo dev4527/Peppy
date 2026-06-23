@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 import api, { API_BASE } from '../utils/api';
+import { AuthContext } from '../context/AuthContext';
 
 function TaskDrawer({ task, onClose, onRefresh }) {
+  const { user } = useContext(AuthContext);
   const [commentText, setCommentText] = useState('');
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -9,6 +11,8 @@ function TaskDrawer({ task, onClose, onRefresh }) {
   const [linkTitle, setLinkTitle] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [actualHours, setActualHours] = useState('');
+  const [managerScore, setManagerScore] = useState('');
+  const [reviewNotes, setReviewNotes] = useState('');
   
   // Local reactive states to bypass render locks
   const [localComments, setLocalComments] = useState([]);
@@ -21,6 +25,8 @@ function TaskDrawer({ task, onClose, onRefresh }) {
       setLocalSubtasks(task.subtasks || []);
       setLocalAttachments(task.attachments || []);
       setActualHours(task.actualMinutes ? String(task.actualMinutes / 60) : '');
+      setManagerScore(task.performanceScore ? String(task.performanceScore) : '');
+      setReviewNotes('');
     }
   }, [task]);
 
@@ -146,6 +152,23 @@ function TaskDrawer({ task, onClose, onRefresh }) {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
   };
 
+  const isManager = user?.role === 'Admin' || user?.role === 'Manager';
+
+  const handleReviewDecision = async (decision) => {
+    try {
+      await api.post(`/api/tasks/${task._id}/review`, {
+        decision,
+        notes: reviewNotes,
+        performanceScore: managerScore === '' ? undefined : Number(managerScore)
+      });
+      setReviewNotes('');
+      if (typeof onRefresh === 'function') onRefresh();
+    } catch (err) {
+      console.error('Review workflow failed:', err);
+      alert(err.response?.data?.message || 'Failed to submit manager review.');
+    }
+  };
+
   return (
     <div className="fixed right-0 top-0 h-full w-96 bg-[#1e1f21] border-l border-[#2d2e30] shadow-2xl z-40 flex flex-col font-sans text-left text-white animate-slide-in select-none">
       
@@ -187,6 +210,51 @@ function TaskDrawer({ task, onClose, onRefresh }) {
           <div className="flex flex-wrap gap-2">
             {task.isMilestone && <span className="text-[9px] px-2 py-1 rounded-md bg-purple-500/10 text-purple-400 border border-purple-500/20 font-black uppercase">Milestone</span>}
             {(task.tags || []).map(tag => <span key={tag} className="text-[9px] px-2 py-1 rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20">#{tag}</span>)}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-[#252628] border border-[#333538] rounded-xl p-3">
+            <span className="text-[9px] text-slate-500 font-bold uppercase">Complexity</span>
+            <p className="text-[11px] text-slate-200 mt-1">{task.complexityScore || 3}/10</p>
+          </div>
+          <div className="bg-[#252628] border border-[#333538] rounded-xl p-3">
+            <span className="text-[9px] text-slate-500 font-bold uppercase">Performance</span>
+            <p className="text-[11px] text-slate-200 mt-1">{task.performanceScore || 0}/100</p>
+          </div>
+        </div>
+
+        {task.review?.required && (
+          <div className="border border-emerald-500/20 bg-emerald-500/5 rounded-xl p-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-emerald-400 font-bold uppercase text-[10px] tracking-wider">Manager Review Gate</h4>
+              <span className="text-[9px] text-white bg-emerald-600/30 px-2 py-0.5 rounded-md">{task.review.status}</span>
+            </div>
+            {task.review.notes && <p className="text-[11px] text-slate-300 mt-2">{task.review.notes}</p>}
+            {isManager && task.review.status !== 'Approved' && (
+              <div className="mt-3 space-y-2">
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={managerScore}
+                  onChange={(e) => setManagerScore(e.target.value)}
+                  placeholder="Performance score /100"
+                  className="w-full bg-[#252628] border border-[#333538] rounded-xl px-3 py-2 text-white text-xs focus:outline-none"
+                />
+                <textarea
+                  rows="2"
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  placeholder="Review notes"
+                  className="w-full bg-[#252628] border border-[#333538] rounded-xl px-3 py-2 text-white text-xs focus:outline-none resize-none"
+                />
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => handleReviewDecision('approve')} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl text-[10px] uppercase">Approve</button>
+                  <button type="button" onClick={() => handleReviewDecision('reject')} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-xl text-[10px] uppercase">Reject</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

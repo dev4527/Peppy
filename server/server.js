@@ -95,6 +95,9 @@ app.use('/api/teams', require('./routes/teams'));
 app.use('/api/ai', require('./routes/ai')); 
 app.use('/api/chats', require('./routes/chats')); // Secure Database Chat Engine Module Gate
 app.use('/api/notifications', require('./routes/notifications')); // ✅ ADDED: Live Workspace Notification Route Registered
+app.use('/api/attendance', require('./routes/attendance'));
+app.use('/api/profile', require('./routes/profile'));
+app.use('/api/google-workspace', require('./routes/googleWorkspace'));
 
 // Base universal health-check tracker route
 app.get('/', (req, res) => {

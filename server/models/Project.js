@@ -14,6 +14,25 @@ const ProjectSchema = new mongoose.Schema({
     required: true,
     default: 'Website Team' // Match text formats safely
   },
+  sharedTeams: [{
+    type: String,
+    trim: true
+  }],
+  collaborators: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  googleWorkspace: {
+    calendarId: { type: String, trim: true, default: '' },
+    driveFolderId: { type: String, trim: true, default: '' },
+    notificationEmail: { type: String, trim: true, lowercase: true, default: '' },
+    lastSyncedAt: { type: Date, default: null }
+  },
+  clonedFrom: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    default: null
+  },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
